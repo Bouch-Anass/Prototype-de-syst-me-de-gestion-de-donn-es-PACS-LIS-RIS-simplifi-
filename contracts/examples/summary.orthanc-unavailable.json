@@ -1,0 +1,89 @@
+{
+  "patient": {
+    "id": "10000000-0000-4000-8000-000000000001",
+    "external_id": "DEMO-P001",
+    "identifier_domain": "DEMO",
+    "display_name": "Patient synthétique 001",
+    "is_synthetic": true
+  },
+  "encounter": {
+    "id": "20000000-0000-4000-8000-000000000001",
+    "external_id": "DEMO-E001",
+    "status": "active",
+    "started_at": "2026-01-15T09:00:00Z"
+  },
+  "laboratory": {
+    "status": "available",
+    "reports": [
+      {
+        "id": "40000000-0000-4000-8000-000000000001",
+        "lab_order_id": "30000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "status": "final",
+        "reported_at": "2026-01-15T09:30:00Z",
+        "observations": [
+          {
+            "code": "CRP",
+            "coding_system": "DEMO",
+            "display": "CRP",
+            "value_numeric": 3.2,
+            "value_text": null,
+            "unit": "mg/L",
+            "data_status": "available"
+          },
+          {
+            "code": "GLU",
+            "coding_system": "DEMO",
+            "display": "Glucose",
+            "value_numeric": 4.8,
+            "value_text": null,
+            "unit": "mmol/L",
+            "data_status": "available"
+          }
+        ]
+      }
+    ]
+  },
+  "radiology": {
+    "exams": [
+      {
+        "id": "60000000-0000-4000-8000-000000000001",
+        "order_id": "50000000-0000-4000-8000-000000000001",
+        "accession_number": "DEMO-ACC001",
+        "modality": "CT",
+        "status": "performed",
+        "performed_at": "2026-01-15T09:40:00Z",
+        "report": {
+          "id": "70000000-0000-4000-8000-000000000001",
+          "status": "final",
+          "content": "Compte rendu fictif pour démonstration logicielle. Aucune interprétation médicale.",
+          "validated_at": "2026-01-15T09:55:00Z"
+        }
+      }
+    ]
+  },
+  "imaging": {
+    "availability_status": "unavailable",
+    "checked_at": "2026-01-15T10:00:00Z",
+    "studies": [
+      {
+        "id": "80000000-0000-4000-8000-000000000001",
+        "exam_id": "60000000-0000-4000-8000-000000000001",
+        "study_instance_uid": "2.25.10101",
+        "series_count": 1,
+        "instance_count": 1,
+        "availability_status": "unavailable",
+        "last_synced_at": "2026-01-15T09:50:00Z"
+      }
+    ]
+  },
+  "warnings": [
+    {
+      "code": "IMAGING_UNAVAILABLE",
+      "resource_id": "80000000-0000-4000-8000-000000000001",
+      "field": null,
+      "message": "Imagerie temporairement indisponible. Les données métier restent consultables."
+    }
+  ]
+}
+

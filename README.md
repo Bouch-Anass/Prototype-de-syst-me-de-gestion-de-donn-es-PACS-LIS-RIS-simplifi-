@@ -6,18 +6,18 @@ Filière INDIA · ENSAM Rabat · Année universitaire 2026–2027 · Équipe de 
 
 Relier les résultats de laboratoire, les examens radiologiques et les images médicales autour d'un **dossier patient unique**, dans un établissement hospitalier fictif.
 
-Ce dépôt conserve les livrables et l'évolution du projet, du cadrage à la démonstration. Le dossier [Week 1](week%201/) constitue la base documentaire actuelle. Ce README sera actualisé à chaque nouvelle semaine.
+Ce dépôt conserve les livrables et l'évolution du projet, du cadrage à la démonstration. Le dossier [de conception](docs/conception/) contient les six documents de la semaine 1. Le squelette technique est décrit dans [ARCHITECTURE.md](ARCHITECTURE.md), et ce README sera actualisé à chaque nouvelle semaine.
 
 ## État actuel
 
 | Repère | Situation |
 | --- | --- |
-| Dernière mise à jour | 21 septembre 2026 |
+| Dernière mise à jour | 28 septembre 2026 |
 | Dernière semaine documentée | Semaine 1 |
 | Phase actuelle | Cadrage, besoins et conception initiale |
 | Livrables disponibles | Six documents PDF : cadrage, besoins, étude PACS/RIS/LIS, normes, architecture et modèle de données |
 | Validation des documents | Revue et arbitrages à consigner ; leur présence ne vaut pas approbation |
-| Implémentation | Aucun prototype exécutable publié à ce stade |
+| Implémentation | Squelette d'architecture, contrats, fixtures synthétiques et tests documentaires ; aucun service applicatif exécutable |
 | Tests et mesures | Scénarios et objectifs définis ; résultats expérimentaux à produire |
 
 ## Objectif et périmètre
@@ -41,12 +41,12 @@ Lire les documents dans cet ordre. Ils détaillent les hypothèses, les exigence
 
 | Document | Contenu |
 | --- | --- |
-| [01 — Cadrage](week%201/01-cadrage.pdf) | Contexte de soins, objectifs, acteurs, périmètre et critères de succès |
-| [02 — Besoins et scénarios](week%201/02-besoins-et-scenarios.pdf) | Exigences fonctionnelles et non fonctionnelles, règles métier, scénarios et validation |
-| [03 — Étude PACS / RIS / LIS](week%201/03-etude-pacs-ris-lis.pdf) | Étude des systèmes et de leur articulation |
-| [04 — Normes et conformité](week%201/04-normes-et-conformite.pdf) | Standards, sécurité, confidentialité et cadre réglementaire |
-| [05 — Architecture v0.1](week%201/05-architecture-v0.1.pdf) | Composants, interfaces, flux, déploiement envisagé et modes dégradés |
-| [06 — Modèle de données v0.1](week%201/06-modele-donnees-v0.1.pdf) | Modèle relationnel, dictionnaire, cardinalités et contraintes d'intégrité |
+| [01 — Cadrage](docs/conception/01-cadrage.pdf) | Contexte de soins, objectifs, acteurs, périmètre et critères de succès |
+| [02 — Besoins et scénarios](docs/conception/02-besoins-et-scenarios.pdf) | Exigences fonctionnelles et non fonctionnelles, règles métier, scénarios et validation |
+| [03 — Étude PACS / RIS / LIS](docs/conception/03-etude-pacs-ris-lis.pdf) | Étude des systèmes et de leur articulation |
+| [04 — Normes et conformité](docs/conception/04-normes-et-conformite.pdf) | Standards, sécurité, confidentialité et cadre réglementaire |
+| [05 — Architecture v0.1](docs/conception/05-architecture-v0.1.pdf) | Composants, interfaces, flux, déploiement envisagé et modes dégradés |
+| [06 — Modèle de données v0.1](docs/conception/06-modele-donnees-v0.1.pdf) | Modèle relationnel, dictionnaire, cardinalités et contraintes d'intégrité |
 
 ## Architecture envisagée
 
@@ -95,11 +95,11 @@ Le parcours prévu est : **cadrage → exigences → conception → réalisation
 
 | Semaine | Phase et travail documenté | Livrables / preuves | État et suite |
 | --- | --- | --- | --- |
-| 1 | Cadrage, besoins, étude des systèmes, normes, architecture et modèle initial | [Six PDF de référence](week%201/) | Documents déposés ; revue, arbitrages et préparation technique à poursuivre |
+| 1 | Cadrage, besoins, étude des systèmes, normes, architecture et modèle initial | [Six PDF de référence](docs/conception/) | Documents déposés ; squelette technique ajouté ; revue et arbitrages à poursuivre |
 
 ### Mettre à jour ce README chaque semaine
 
-1. Ajouter les nouveaux livrables dans un dossier `week N/`, en conservant les versions antérieures.
+1. Ajouter les nouveaux livrables dans un dossier documentaire adapté, en conservant les versions antérieures.
 2. Ajouter une ligne au tableau avec les travaux réellement effectués et des liens vers leurs preuves : documents, code, revues ou résultats de tests.
 3. Actualiser **État actuel**, les choix d'architecture et les prochaines étapes. Distinguer systématiquement ce qui est proposé, réalisé, testé et validé.
 4. Consigner les changements de décision, leur motif, les contributions et les points non résolus dans le bilan de la semaine.
@@ -127,6 +127,12 @@ Modèle à copier dans le bilan de chaque nouvelle semaine :
 - Répartir les responsabilités entre les six membres et fixer les échéances.
 - Confirmer les choix techniques proposés et préparer un environnement local commun.
 - Préparer les données fictives et une première réalisation limitée au scénario documenté.
+
+## Architecture et démarrage technique
+
+Le dépôt contient maintenant le squelette général qui guidera l'implémentation : backend modulaire FastAPI, PostgreSQL, Orthanc, contrats API/HL7/DICOM, simulateurs, fixtures synthétiques, backlog, règles de contribution, sécurité et contrôles de contrat. Consultez [le backlog](docs/BACKLOG.md) et [le guide de démarrage](docs/DEMARRAGE.md) avant de créer du code applicatif.
+
+Le squelette est volontairement documentaire. Les choix encore ouverts sont listés dans [les décisions](docs/DECISIONS.md), notamment le frontend, l'authentification détaillée, le profil HL7 et les versions exactes des outils.
 
 ## Installation et exécution
 

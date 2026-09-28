@@ -1,0 +1,49 @@
+{
+  "synthetic": true,
+  "scenario_id": "DEMO-001",
+  "description": "Jeu fictif pour essais logiciels, sans interprétation clinique.",
+  "ids": {
+    "patient": "10000000-0000-4000-8000-000000000001",
+    "encounter": "20000000-0000-4000-8000-000000000001",
+    "lab_order": "30000000-0000-4000-8000-000000000001",
+    "lab_report": "40000000-0000-4000-8000-000000000001",
+    "radiology_order": "50000000-0000-4000-8000-000000000001",
+    "radiology_exam": "60000000-0000-4000-8000-000000000001",
+    "radiology_report": "70000000-0000-4000-8000-000000000001",
+    "imaging_study": "80000000-0000-4000-8000-000000000001"
+  },
+  "identity": {
+    "identifier_domain": "DEMO",
+    "patient_external_id": "DEMO-P001",
+    "encounter_external_id": "DEMO-E001",
+    "dicom_patient_id": "DEMO-P001"
+  },
+  "laboratory": {
+    "source_system": "DEMO-LIS",
+    "placer_number": "DEMO-LAB001",
+    "filler_number": "DEMO-LIS001",
+    "expected_observations": [
+      {
+        "code": "CRP",
+        "coding_system": "DEMO",
+        "display": "CRP",
+        "unit": "mg/L"
+      },
+      {
+        "code": "GLU",
+        "coding_system": "DEMO",
+        "display": "Glucose",
+        "unit": "mmol/L"
+      }
+    ]
+  },
+  "imaging": {
+    "accession_number": "DEMO-ACC001",
+    "study_instance_uid": "2.25.10101",
+    "modality": "CT",
+    "expected_series_count": 1,
+    "expected_instance_count": 1
+  },
+  "fixture_timestamp": "2026-01-15T10:00:00Z"
+}
+
