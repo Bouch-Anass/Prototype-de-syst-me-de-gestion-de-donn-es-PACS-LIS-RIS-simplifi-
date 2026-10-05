@@ -1,6 +1,6 @@
 # T02 — Contrats communs et scénario de référence
 
-Date : 5 octobre 2026. Responsable : **Membre 1** (porteur du projet). Branche : `codex/t02-contrats-communs`. Statut : **contribution préparée pour revue**, pas accord collectif ni implémentation applicative.
+Date : 5 octobre 2026. Responsable : **Membre 1** (porteur du projet). Branche : `t02-contrats-communs`. Statut : **contribution préparée pour revue**, pas accord collectif ni implémentation applicative.
 
 ## Problème et résultat
 

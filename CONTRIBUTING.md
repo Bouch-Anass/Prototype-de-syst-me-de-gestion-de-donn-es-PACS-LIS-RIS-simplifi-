@@ -2,7 +2,7 @@
 
 ## Un changement, une responsabilité claire
 
-Une branche porte un périmètre borné, par exemple `codex/t02-contrats-communs`, `feat/t05-ingestion-laboratoire` ou `feat/t06-parcours-radiologie`. Les identifiants T01 à T12 sont des tâches locales, pas des numéros d'issues GitHub. Publier une pull request en brouillon dès la première contribution vérifiable, puis demander une revue avant fusion dans `main`.
+Une branche porte un périmètre borné, par exemple `t02-contrats-communs`, `feat/t05-ingestion-laboratoire` ou `feat/t06-parcours-radiologie`. Les identifiants T01 à T12 sont des tâches locales, pas des numéros d'issues GitHub. Publier une pull request en brouillon dès la première contribution vérifiable, puis demander une revue avant fusion dans `main`.
 
 ## Langue du projet
 
