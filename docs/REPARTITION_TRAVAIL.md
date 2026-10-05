@@ -1,6 +1,21 @@
 # Répartition du travail
 
-Cinq lots logiques sont proposés. Ils n'imposent pas cinq personnes : plusieurs lots peuvent être regroupés. Chaque lot a un périmètre de fichiers, des entrées attendues et une preuve de fonctionnement.
+Répartition retenue le 5 octobre 2026 pour six membres. Le porteur de cette contribution est le **Membre 1**. Les lettres A à E désignent des domaines techniques historiques, et non des personnes. Chaque membre écrit les tests et la documentation de son périmètre et corrige ses défauts d'intégration.
+
+## Responsables et revues
+
+| Membre | Responsabilité | Tâches | Première livraison | Revue attendue |
+|---|---|---|---|---|
+| 1 | Contrats et dossier unifié | T02, T08 | Contrats, scénario commun, puis composition du dossier | Membres 2 à 6 pour leur interface |
+| 2 | Backend et sécurité | T03, autorisation de T10 | Identité, sessions, permissions, audit, migrations communes | 1 et 6 |
+| 3 | Laboratoire et HL7 | T04, T05 | Domaine laboratoire, adaptateur et simulateur LIS | 1 et 2 |
+| 4 | Radiologie et imagerie | T06, T07, backend de T10 hors autorisation | RIS, rapprochement et récupération Orthanc | 1, 2 et 5 |
+| 5 | Interface et affichage des images | T09, frontend de T10 | Interface sur exemples puis API, viewer, tests d'interface | 1 et 4 |
+| 6 | Environnement et intégration | T01, support T02, coordination T11/T12 | Environnement, automatisation et jeux de test reproductibles | Responsables des domaines concernés |
+
+Le Membre 1 possède le manifeste de référence ; le Membre 6 aide à préparer les variantes de test. Le Membre 3 produit les messages HL7 et le Membre 4 les objets DICOM. Le Membre 4 coordonne T10 : il applique côté serveur les autorisations fournies par le Membre 2 avant toute récupération d'image ; le Membre 5 intègre cet accès à l'interface.
+
+T08 compose les services des Membres 2, 3 et 4. Il ne réimplémente ni leur autorisation ni leurs règles métier. Une revue par les consommateurs précède toute modification incompatible d'un contrat. T11 et T12 sont collectifs ; leur coordination ne transfère pas tous les tests et tout le rapport au Membre 6.
 
 ## Lots
 
@@ -60,7 +75,7 @@ Le lot E prépare l'environnement et les tests dès le début. Il ne commence pa
 ### A : socle
 
 - Un patient peut être recherché par identifiant exact.
-- Un dossier inaccessible renvoie 403 sans données sensibles.
+- Un rôle interdit renvoie 403 ; un dossier inexistant ou hors affectation renvoie 404 sans données sensibles.
 - La synthèse compose des services, sans requêtes métier dispersées dans la route.
 - Les créations et lectures sensibles sont auditées.
 - Les migrations sont reproductibles sur une base vide.

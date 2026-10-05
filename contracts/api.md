@@ -1,11 +1,13 @@
 # Contrat API de démarrage
 
+Version proposée : **0.1.0**, contribution T02 du Membre 1. Revue requise avant adoption collective. La structure de synthèse est définie par [le schéma JSON](schemas/synthese.schema.json) ; les erreurs par [leur schéma](schemas/erreur.schema.json). Le [contrat d'accès](acces.md) complète les droits décrits ici.
+
 ## Routes de la conception
 
 | Méthode et chemin | Fonction | Accès minimal |
 |---|---|---|
 | `POST /api/v1/auth/login` | Ouvrir une session | Identifiants valides ; protection contre les tentatives répétées |
-| `GET /api/v1/patients?identifier=...` | Recherche par identifiant | Utilisateur autorisé, contexte contrôlé |
+| `GET /api/v1/patients?identifier_domain=...&identifier=...` | Recherche exacte par domaine et identifiant | Utilisateur autorisé, contexte contrôlé |
 | `GET /api/v1/patients/{id}/encounters` | Rencontres du patient | Accès autorisé à ce patient |
 | `GET /api/v1/encounters/{id}/summary` | Dossier agrégé | Médecin ou radiologue autorisé |
 | `GET /api/v1/imaging-studies/{id}` | Métadonnées d'une étude | Accès clinique à la rencontre liée |
@@ -13,7 +15,9 @@
 | `POST /internal/hl7/messages` | Transport HTTP de test, si retenu | Compte de service ; réseau interne uniquement |
 | `GET /health/ready` | État prêt/non prêt du service métier | Réponse technique minimale |
 
-Les détails de login dépendent de D12. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le choix entre 403 explicite et 404 de non-divulgation pour une ressource précise doit rester uniforme et documenté.
+Login et session suivent D12 et [le contrat d'accès](acces.md). Recherche : paramètres obligatoires non vides, comparaison exacte sensible à la casse, sans normalisation implicite. Retour `{"items": [...]}` avec zéro ou un patient au format du schéma ; zéro résultat si absent ou hors affectation. La liste des épisodes utilise la même enveloppe, tri décroissant de `started_at`, puis UUID. Les noms ne servent jamais de clé.
+
+Pour `summary`, UUID mal formé : 422 ; identité non authentifiée : 401 ; rôle non autorisé : 403 ; épisode inconnu ou hors affectation : 404. Les deux derniers cas de ressource utilisent le même message. Les réponses cliniques et erreurs portent `Cache-Control: no-store` et `X-Correlation-ID` (UUID généré côté serveur). La corrélation du corps d'erreur est identique à cet en-tête. Aucune réponse avec données avant autorisation et audit requis.
 
 ## Propositions de routes d'écriture, à valider avant implémentation
 
@@ -48,6 +52,16 @@ La réponse présente la dernière version pertinente d'un rapport biologique. L
 
 Une date `last_synced_at` ne prouve pas la disponibilité actuelle. En cas de contrôle récent échoué, l'état retourné est `unavailable`, même si une référence d'étude connue est conservée.
 
+## Nullabilité, ordre et qualité
+
+Tous les champs du schéma sont présents, même lorsqu'une valeur autorise `null`. Une liste vide signifie zéro élément connu. Un examen planifié peut avoir `performed_at=null` et `report=null`. Les compteurs d'une étude peuvent être inconnus (`null`), sa dernière synchronisation absente ; `checked_at` reste l'instant de vérification. Les messages d'avertissement sont en français ; les codes stables servent au programme.
+
+Rapports : une seule version courante par demande, plus grand numéro de version, tri décroissant de `reported_at` puis UUID. Observations : tri par système puis code. Examens : tri par accession puis UUID ; études : par UID. Le consommateur ne dépend pas de l'ordre des propriétés JSON. Deux rapports de la même demande ne doivent pas être fusionnés en perdant la provenance.
+
+Laboratoire `available` : toutes les analyses demandées sont exploitables ; `partial` : au moins une attendue est manquante ou invalide ; `unavailable` : aucun rapport reçu pour les demandes attendues. Sans demande : `reports=[]`, `available` signifie aucune donnée attendue manquante, pas un résultat médical normal. Une valeur manquante/invalide est nulle et accompagnée d'un avertissement attaché au rapport et au code de l'analyse. Numérique disponible : nombre JSON fini, unité obligatoire, jamais une chaîne numérique.
+
+Imagerie : `unavailable` si le contrôle PACS échoue ; sinon `incomplete` si une étude attendue manque ou est partielle ; sinon `available`. Sans examen : `studies=[]`, aucune image attendue. Une panne PACS ne transforme pas le laboratoire en indisponible. Un compte rendu final possède une date de validation postérieure ou égale à la réalisation de l'examen. Les tests d'intégration vérifieront ces relations ; le schéma seul ne prouve pas l'intégrité des données.
+
 ## Matrice minimale de droits proposée
 
 | Action | physician | radiologist | lab_technician | admin |
@@ -77,8 +91,8 @@ Exemple fictif :
 | Situation | HTTP attendu |
 |---|---|
 | Absence d'authentification ou session invalide | 401 |
-| Droit insuffisant | 403, sous réserve de la règle uniforme de non-divulgation |
-| Ressource inexistante | 404 |
+| Rôle insuffisant pour la fonction | 403 |
+| Ressource inexistante ou hors affectation | 404, même message générique |
 | Réutilisation incohérente d'identifiant métier | 409 |
 | Données d'entrée invalides | 422 |
 | Base métier ou audit requis indisponible | 503 |
@@ -91,12 +105,13 @@ Les réponses techniques ne contiennent ni traceback, ni payload HL7, ni mot de 
 
 | Service | Entrée | Sortie ou effet |
 |---|---|---|
-| Identité : resolve_patient | domaine et identifiant externe | UUID exact ou erreur d'identité |
-| Laboratoire : ingest_order / ingest_result | message validé et identité résolue | Écriture transactionnelle, identifiant de traitement |
-| Radiologie : get_encounter_exams | UUID de rencontre | Examens et compte rendu autorisés |
-| Imagerie : get_availability | UUID d'examen, budget temporel | Référence, état et date de vérification |
-| Synthèse : build_summary | acteur et UUID de rencontre | Réponse commune, audit requis |
-| Audit : record_event | acteur, action, ressource, résultat, corrélation | Trace minimale persistée |
+| Identité : resoudre_patient | domaine et identifiant externe | UUID exact ou erreur d'identité |
+| Laboratoire : ingerer_demande / ingerer_resultat | message validé et identité résolue | Écriture transactionnelle, identifiant de traitement |
+| Laboratoire : lire_rapports_courants | UUID d'épisode autorisé | Bloc `laboratory` conforme au schéma, avertissements associés |
+| Radiologie : lister_examens | UUID d'épisode autorisé | Bloc `radiology` conforme au schéma |
+| Imagerie : verifier_disponibilite | Examens autorisés, budget temporel | Bloc `imaging`, avertissements et dates de vérification |
+| Synthèse : composer_dossier | acteur et UUID d'épisode | Réponse commune, audit requis |
+| Audit : enregistrer_evenement | acteur, action, ressource, résultat, corrélation | Trace minimale persistée |
 
-Ces noms décrivent des responsabilités. Les signatures Python exactes seront fixées lors de T02/T03.
+Contrat d'appel T08 : autoriser via Membre 2, lire patient/épisode et blocs des Membres 3/4, composer et vérifier la réponse, persister l'audit via Membre 2, puis émettre. Erreur Orthanc seule : bloc dégradé ; erreur de base ou d'audit : 503. Les services de lecture n'écrivent pas dans les autres domaines. L'implémentation Python (synchrone/asynchrone, session SQL) sera fixée en T03/T08 sans modifier ces entrées/sorties publiques.
 

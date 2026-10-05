@@ -7,6 +7,11 @@ Les contrats constituent la frontière commune entre les lots. Ils décrivent le
 | [API](api.md) | Routes, droits, réponses et erreurs |
 | [HL7](hl7.md) | Réception, mapping métier, rejouabilité et ACK |
 | [Imagerie](imaging.md) | Import, rapprochement, disponibilité et accès |
+| [Accès](acces.md) | Sessions, affectations, autorisation et audit |
+| [Vocabulaire](vocabulaire.md) | Libellés français et identifiants machine stables |
+| [Identifiants](identifiants.md) | Correspondance exacte des clés et écart explicite aux PDF |
+| [Schéma de synthèse](schemas/synthese.schema.json) | Structure JSON version 0.1.0, types et champs admis |
+| [Schéma d'erreur](schemas/erreur.schema.json) | Enveloppe publique d'erreur |
 | [Exemples de synthèse](examples/README.md) | Mocks pour le frontend et cibles pour le backend |
 
 ## Règles communes

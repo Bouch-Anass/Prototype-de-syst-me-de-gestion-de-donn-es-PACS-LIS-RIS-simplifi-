@@ -12,13 +12,15 @@ Ce dépôt conserve les livrables et l'évolution du projet, du cadrage à la d�
 
 | Repère | Situation |
 | --- | --- |
-| Dernière mise à jour | 28 septembre 2026 |
-| Dernière semaine documentée | Semaine 1 |
+| Dernière mise à jour | 5 octobre 2026 |
+| Dernier jalon documenté | T02 — contrats communs proposés en revue |
 | Phase actuelle | Cadrage, besoins et conception initiale |
 | Livrables disponibles | Six documents PDF : cadrage, besoins, étude PACS/RIS/LIS, normes, architecture et modèle de données |
 | Validation des documents | Revue et arbitrages à consigner ; leur présence ne vaut pas approbation |
 | Implémentation | Squelette d'architecture, contrats, fixtures synthétiques et tests documentaires ; aucun service applicatif exécutable |
-| Tests et mesures | Scénarios et objectifs définis ; résultats expérimentaux à produire |
+| Tests et mesures | Contrôles de schémas et d'exemples exécutés ; intégration et mesures applicatives à produire |
+
+La contribution du **Membre 1** est décrite dans [le bilan T02](docs/T02_CONTRATS_COMMUNS.md). Elle propose les contrats communs et la répartition entre six membres ; les choix techniques attendent la revue des membres concernés. T08 sera une contribution distincte après accord sur ces interfaces.
 
 ## Objectif et périmètre
 
@@ -77,6 +79,8 @@ Le RIS reste un module logique du backend. Les pixels DICOM restent dans Orthanc
 
 **Scénario nominal :** le patient fictif `PAT-SIM-0007`, pendant l'épisode `ENC-2026-0091`, bénéficie d'une NFS, d'une CRP et d'un scanner thoracique. Le prototype devra relier les résultats HL7 v2, le compte rendu radiologique et l'étude DICOM, puis afficher le dossier unifié et tracer sa consultation.
 
+Ce scénario est celui des PDF. Pour le premier essai technique, le starter et T02 utilisent **DEMO-001 : CRP/glucose**, avec d'autres identifiants. L'écart est explicite dans [D19](docs/DECISIONS.md) et [le contrat d'identifiants](contracts/identifiants.md) ; il doit être accepté ou résolu avant la démonstration finale.
+
 **Cas dégradé prioritaire :** la valeur CRP est absente ou inexploitable. Les autres informations restent consultables et l'absence est explicitement signalée. Une valeur manquante ne doit jamais être remplacée par zéro.
 
 | Indicateur | Cible initiale issue des besoins | Résultat actuel |
@@ -96,6 +100,7 @@ Le parcours prévu est : **cadrage → exigences → conception → réalisation
 | Semaine | Phase et travail documenté | Livrables / preuves | État et suite |
 | --- | --- | --- | --- |
 | 1 | Cadrage, besoins, étude des systèmes, normes, architecture et modèle initial | [Six PDF de référence](docs/conception/) | Documents déposés ; squelette technique ajouté ; revue et arbitrages à poursuivre |
+| Jalon T02 — 05/10/2026 | Contrats, scénario commun et responsabilités | [Bilan de contribution](docs/T02_CONTRATS_COMMUNS.md) | Proposition du Membre 1 ; revue collective en attente |
 
 ### Mettre à jour ce README chaque semaine
 

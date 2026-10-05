@@ -1,5 +1,15 @@
 # Vérifications du pack initial
 
+## T02 — vérifications du 5 octobre 2026
+
+- Dépendances de tests installées depuis `requirements-contrats.txt` ; `pip check` sans conflit.
+- Suite de contrat : **26 tests réussis** (13 historiques et 13 nouveaux).
+- Les nouveaux tests couvrent les schémas JSON, les erreurs, la nullabilité et les métadonnées communes de rapprochement.
+- Documentation et liens locaux vérifiés avec `scripts/check_repo.py` après intégration.
+- Validation locale seulement à ce stade ; aucun test d'API, de droits réels, de parseur HL7 ou d'instance Orthanc. L'état du workflow distant est à consulter sur GitHub après publication.
+
+## Historique du 28 septembre 2026
+
 Contrôles réalisés le 28 septembre 2026 avec Python 3.12.14.
 
 | Vérification | Résultat |

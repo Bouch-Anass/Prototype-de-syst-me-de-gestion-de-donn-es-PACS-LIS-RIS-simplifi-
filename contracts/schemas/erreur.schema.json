@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Erreur API — contrat 0.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "correlation_id"],
+  "properties": {
+    "code": {"enum": ["AUTHENTICATION_REQUIRED", "ACCESS_DENIED", "RESOURCE_NOT_FOUND", "IDENTIFIER_CONFLICT", "VALIDATION_ERROR", "SERVICE_UNAVAILABLE", "INVALID_HL7_HEADER", "PAYLOAD_TOO_LARGE", "UNSUPPORTED_MEDIA_TYPE"]},
+    "message": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "correlation_id": {"type": "string", "format": "uuid"}
+  }
+}

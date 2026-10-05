@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dossier patient unifié — contrat 0.1.0",
+  "description": "Structure de la réponse autorisée. Les rapprochements métier sont vérifiés séparément.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["patient", "encounter", "laboratory", "radiology", "imaging", "warnings"],
+  "properties": {
+    "patient": {"$ref": "#/$defs/patient"},
+    "encounter": {"$ref": "#/$defs/episode"},
+    "laboratory": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reports"],
+      "properties": {
+        "status": {"enum": ["available", "partial", "unavailable"]},
+        "reports": {"type": "array", "items": {"$ref": "#/$defs/rapport_biologique"}}
+      }
+    },
+    "radiology": {
+      "type": "object", "additionalProperties": false,
+      "required": ["exams"],
+      "properties": {"exams": {"type": "array", "items": {"$ref": "#/$defs/examen"}}}
+    },
+    "imaging": {
+      "type": "object", "additionalProperties": false,
+      "required": ["availability_status", "checked_at", "studies"],
+      "properties": {
+        "availability_status": {"$ref": "#/$defs/disponibilite"},
+        "checked_at": {"$ref": "#/$defs/instant"},
+        "studies": {"type": "array", "items": {"$ref": "#/$defs/etude"}}
+      }
+    },
+    "warnings": {"type": "array", "items": {"$ref": "#/$defs/avertissement"}}
+  },
+  "$defs": {
+    "uuid": {"type": "string", "format": "uuid"},
+    "instant": {"type": "string", "format": "date-time"},
+    "texte": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "disponibilite": {"enum": ["available", "incomplete", "unavailable"]},
+    "patient": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "external_id", "identifier_domain", "display_name", "is_synthetic"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "external_id": {"$ref": "#/$defs/texte"},
+        "identifier_domain": {"$ref": "#/$defs/texte"},
+        "display_name": {"$ref": "#/$defs/texte"},
+        "is_synthetic": {"const": true}
+      }
+    },
+    "episode": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "external_id", "status", "started_at"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"}, "external_id": {"$ref": "#/$defs/texte"},
+        "status": {"enum": ["planned", "active", "finished", "cancelled"]},
+        "started_at": {"$ref": "#/$defs/instant"}
+      }
+    },
+    "rapport_biologique": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "lab_order_id", "version", "status", "reported_at", "observations"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"}, "lab_order_id": {"$ref": "#/$defs/uuid"},
+        "version": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["preliminary", "final", "corrected"]},
+        "reported_at": {"$ref": "#/$defs/instant"},
+        "observations": {"type": "array", "items": {"$ref": "#/$defs/observation"}}
+      }
+    },
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "coding_system", "display", "value_numeric", "value_text", "unit", "data_status"],
+      "properties": {
+        "code": {"$ref": "#/$defs/texte"}, "coding_system": {"$ref": "#/$defs/texte"},
+        "display": {"$ref": "#/$defs/texte"}, "value_numeric": {"type": ["number", "null"]},
+        "value_text": {"oneOf": [{"$ref": "#/$defs/texte"}, {"type": "null"}]},
+        "unit": {"oneOf": [{"$ref": "#/$defs/texte"}, {"type": "null"}]},
+        "data_status": {"enum": ["available", "missing", "invalid"]}
+      },
+      "if": {"properties": {"data_status": {"const": "available"}}},
+      "then": {
+        "oneOf": [
+          {"properties": {"value_numeric": {"type": "number"}, "value_text": {"type": "null"}, "unit": {"$ref": "#/$defs/texte"}}},
+          {"properties": {"value_numeric": {"type": "null"}, "value_text": {"$ref": "#/$defs/texte"}}}
+        ]
+      },
+      "else": {"properties": {"value_numeric": {"type": "null"}, "value_text": {"type": "null"}}}
+    },
+    "examen": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "order_id", "accession_number", "modality", "status", "performed_at", "report"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"}, "order_id": {"$ref": "#/$defs/uuid"},
+        "accession_number": {"$ref": "#/$defs/texte"}, "modality": {"$ref": "#/$defs/texte"},
+        "status": {"enum": ["planned", "in-progress", "performed", "cancelled"]},
+        "performed_at": {"oneOf": [{"$ref": "#/$defs/instant"}, {"type": "null"}]},
+        "report": {"oneOf": [{"$ref": "#/$defs/compte_rendu"}, {"type": "null"}]}
+      },
+      "if": {"properties": {"status": {"const": "performed"}}},
+      "then": {"properties": {"performed_at": {"$ref": "#/$defs/instant"}}}
+    },
+    "compte_rendu": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "content", "validated_at"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"}, "status": {"enum": ["draft", "final", "amended"]},
+        "content": {"$ref": "#/$defs/texte"},
+        "validated_at": {"oneOf": [{"$ref": "#/$defs/instant"}, {"type": "null"}]}
+      },
+      "if": {"properties": {"status": {"enum": ["final", "amended"]}}},
+      "then": {"properties": {"validated_at": {"$ref": "#/$defs/instant"}}}
+    },
+    "etude": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "exam_id", "study_instance_uid", "series_count", "instance_count", "availability_status", "last_synced_at"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"}, "exam_id": {"$ref": "#/$defs/uuid"},
+        "study_instance_uid": {"type": "string", "maxLength": 64, "pattern": "^(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))+$"},
+        "series_count": {"type": ["integer", "null"], "minimum": 0},
+        "instance_count": {"type": ["integer", "null"], "minimum": 0},
+        "availability_status": {"$ref": "#/$defs/disponibilite"},
+        "last_synced_at": {"oneOf": [{"$ref": "#/$defs/instant"}, {"type": "null"}]}
+      }
+    },
+    "avertissement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "resource_id", "field", "message"],
+      "properties": {
+        "code": {"enum": ["LAB_RESULT_MISSING", "LAB_RESULT_INVALID", "IMAGING_UNAVAILABLE", "IMAGING_INCOMPLETE"]},
+        "resource_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+        "field": {"oneOf": [{"$ref": "#/$defs/texte"}, {"type": "null"}]},
+        "message": {"$ref": "#/$defs/texte"}
+      }
+    }
+  }
+}

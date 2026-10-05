@@ -2,9 +2,11 @@
 
 Les identifiants T01 à T12 sont des repères locaux, pas des numéros d'issues GitHub. Chaque section peut devenir une issue à partir du modèle fourni.
 
+La [répartition entre six membres](REPARTITION_TRAVAIL.md) fait autorité sur les anciennes lettres de lots. T02 possède un [bilan de livraison et de revue](T02_CONTRATS_COMMUNS.md). Une contribution proposée n'est pas une tâche approuvée par toute l'équipe.
+
 ## T01 : environnement local reproductible
 
-Lot E. Dépendance : choix D15.
+Membre 6. Dépendance : choix D15.
 
 Livrer les versions verrouillées, un Compose local PostgreSQL/Orthanc, les volumes et healthchecks, puis les services applicatifs lorsqu'ils existent. Publier seulement les ports nécessaires sur l'interface locale. Documenter l'initialisation des secrets hors Git.
 
@@ -12,7 +14,7 @@ Acceptation : démarrage depuis un clone vierge selon une procédure exacte, don
 
 ## T02 : contrats et jeu synthétique commun
 
-Lot A avec B, C et D. Aucune dépendance technique.
+Membre 1, avec revue des Membres 2 à 6. Membre 6 en support des fixtures. Aucune dépendance technique.
 
 Valider les exemples JSON et les identifiants, le profil HL7 précis, les clés de rapprochement DICOM, le choix d'authentification et les interfaces de services. Résoudre D08, D11, D12 et D13 à temps pour les lots concernés.
 
@@ -20,7 +22,7 @@ Acceptation : les lots interprètent les mêmes champs et états ; le manifeste 
 
 ## T03 : socle backend, identité, droits et audit
 
-Lot A. Dépendances : T02 ; base T01 pour les essais persistants.
+Membre 2. Dépendances : T02 ; base T01 pour les essais persistants.
 
 Créer FastAPI, configuration validée, session de base, migrations communes, patient/rencontre synthétiques, authentification, droits et audit minimal.
 
@@ -28,7 +30,7 @@ Acceptation : recherche d'identifiant exact, refus d'accès hors contexte, aucun
 
 ## T04 : domaine laboratoire et versions
 
-Lot B. Dépendance : T02 ; intégration avec T03.
+Membre 3. Dépendance : T02 ; intégration avec T03.
 
 Implémenter commandes, rapports, observations, règles de valeurs manquantes et corrections. Les tests unitaires peuvent débuter avant la disponibilité de l'API.
 
@@ -36,7 +38,7 @@ Acceptation : une observation disponible porte une valeur ; la CRP manquante res
 
 ## T05 : adaptateur et simulateur HL7
 
-Lot B. Dépendances : T04 et profil T02.
+Membre 3. Dépendances : T04 et profil T02.
 
 Construire les messages synthétiques du profil accepté, leur réception, parsing, validation, corrélation, transactions et ACK.
 
@@ -44,7 +46,7 @@ Acceptation : demande et résultat intégrés, rejeu exact sans doublon, conflit
 
 ## T06 : workflow RIS et compte rendu
 
-Lot C. Dépendance : T02 ; intégration avec T03.
+Membre 4. Dépendance : T02 ; intégration avec T03.
 
 Implémenter demandes, examens et compte rendu courant. Définir et tester les transitions permises, notamment la validation par un radiologue.
 
@@ -52,7 +54,7 @@ Acceptation : rattachement à la rencontre, accession unique dans le périmètre
 
 ## T07 : Orthanc et rapprochement des études
 
-Lot C. Dépendances : T01, T02 et T06.
+Membre 4. Dépendances : T01, T02 et T06.
 
 Générer/importer une étude synthétique, lire les métadonnées Orthanc et relier l'étude à l'examen. Fixer les délais d'appel et l'actualisation de disponibilité.
 
@@ -60,7 +62,7 @@ Acceptation : étude correcte retrouvée, mauvais patient et accession inconnue 
 
 ## T08 : endpoint de synthèse
 
-Lot A. Dépendances : T03 ; services de T04, T06 et T07 ou doubles de test conformes.
+Membre 1. Dépendances : T03 ; services de T04, T06 et T07 ou doubles de test conformes. Autorisation et audit fournis par le Membre 2.
 
 Composer le dossier avec droits, audit, warnings et erreurs. Documenter les données datées de l'imagerie.
 
@@ -68,7 +70,7 @@ Acceptation : réponses compatibles avec les trois mocks ; HTTP 200 dégradé si
 
 ## T09 : interface sur mocks puis API
 
-Lot D. Dépendance : T02 ; T08 pour l'intégration réelle.
+Membre 5. Dépendance : T02 ; T08 pour l'intégration réelle.
 
 Créer recherche patient, sélection de rencontre et dossier, états de chargement/refus/erreur, onglets ou sections biologiques et radiologiques.
 
@@ -76,7 +78,7 @@ Acceptation : les trois fixtures sont affichables, la CRP manquante ne vaut jama
 
 ## T10 : accès d'imagerie contrôlé
 
-Lots C et D avec A. Dépendances : T07, T09 et décision D14.
+Membre 4 (coordination et récupération Orthanc), Membre 2 (autorisation serveur), Membre 5 (viewer). Dépendances : T07, T09 et décision D14.
 
 Choisir le viewer de démonstration, implémenter la route d'accès et les vérifications de droits. Ajouter DICOMweb seulement si requis.
 
@@ -84,7 +86,7 @@ Acceptation : accès autorisé fonctionnel, accès interdit bloqué même avec U
 
 ## T11 : intégration nominale et cas dégradés
 
-Lot E avec A, B, C, D. Dépendances : T05 à T10 selon scénario.
+Membre 6 coordonne ; chaque membre teste et corrige son périmètre. Dépendances : T05 à T10 selon scénario.
 
 Automatiser les parcours du [plan d'intégration](../tests/integration/README.md) et du [plan de bout en bout](../tests/e2e/README.md).
 
@@ -92,9 +94,9 @@ Acceptation : un scénario reproductible prouve la chaîne complète ; les rejou
 
 ## T12 : documentation et démonstration reproductible
 
-Lot E avec revue des domaines. Dépendance : T11 pour la clôture.
+Membre 6 coordonne ; les six membres contribuent au rapport et à la démonstration. Dépendance : T11 pour la clôture.
 
-Mettre à jour les commandes exactes, décisions, contrats, versions et limites. Ajouter les six PDF existants sans les modifier si leur publication est souhaitée.
+Mettre à jour les commandes exactes, décisions, contrats, versions et limites. Conserver les six PDF de référence déjà publiés dans `docs/conception/`.
 
 Acceptation : exécution depuis un clone vierge, preuves de tests, liste transparente des éléments non implémentés, absence de données réelles et secrets.
 

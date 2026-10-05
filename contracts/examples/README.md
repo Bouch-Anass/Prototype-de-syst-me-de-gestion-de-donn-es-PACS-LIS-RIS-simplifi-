@@ -12,5 +12,5 @@ Toutes les valeurs sont fictives. Aucune plage de référence, interprétation o
 
 Les identifiants proviennent du [manifeste commun](../../data/fixtures/scenario.json). Les horodatages sont fixes pour des tests reproductibles, pas des mesures récentes.
 
-Le frontend peut utiliser ces fichiers sans attendre l'API. Les tests vérifient quelques invariants ciblés de ces exemples ; ils ne remplacent ni un schéma OpenAPI complet ni des tests du backend.
+Le frontend peut utiliser ces fichiers sans attendre l'API. Les tests vérifient le [schéma public](../schemas/synthese.schema.json) et les invariants ciblés de DEMO-001. Les fixtures représentent trois alternatives, pas des mesures de disponibilité en direct. Elles ne remplacent ni l'OpenAPI future ni les tests du backend. Voir [les identifiants](../identifiants.md) pour l'écart documenté au scénario NFS/CRP des PDF.
 

@@ -1,0 +1,10 @@
+{
+  "description": "Métadonnées synthétiques de rapprochement ; ce fichier n'est pas un objet DICOM.",
+  "PatientID": "DEMO-P001",
+  "IssuerOfPatientID": "DEMO",
+  "AccessionNumber": "DEMO-ACC001",
+  "StudyInstanceUID": "2.25.10101",
+  "SeriesInstanceUID": "2.25.10102",
+  "SOPInstanceUID": "2.25.10103",
+  "Modality": "CT"
+}

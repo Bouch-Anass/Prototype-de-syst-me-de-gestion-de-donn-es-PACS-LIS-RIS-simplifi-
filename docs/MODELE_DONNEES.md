@@ -69,7 +69,9 @@ Les messages rejetés doivent laisser une trace technique minimale après le rol
 
 ## Propriété des migrations
 
-Le lot A organise l'historique commun. B et C écrivent les migrations de leurs tables ; elles sont intégrées dans un ordre unique. Une migration déjà appliquée n'est pas modifiée en place : une migration suivante corrige le schéma.
+Le Membre 2 organise l'historique commun. Les Membres 3 et 4 écrivent les migrations de leurs tables ; elles sont intégrées dans un ordre unique, avec revue du Membre 1 pour les contrats. Une migration déjà appliquée n'est pas modifiée en place : une migration suivante corrige le schéma.
+
+T02 propose une association utilisateur/épisode pour les affectations et un stockage de sessions côté serveur, conformément au [contrat d'accès](../contracts/acces.md). Le schéma SQL détaillé est à livrer en T03. Le catalogue local `BILAN_DEMO` du manifeste définit les analyses attendues ; il est enregistré à la création de la demande pour éviter qu'une modification future du manifeste ne réécrive le sens des rapports antérieurs.
 
 ## Extensions différées
 

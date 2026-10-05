@@ -15,11 +15,23 @@ Il n'y a pas encore de commande de lancement applicatif, de fichier Compose, de 
 Depuis la racine du dossier extrait :
 
 ```bash
+python3 -m pip install -r requirements-contrats.txt
 python3 scripts/check_repo.py
 python3 -m unittest discover -s tests/contract -v
 ```
 
-Python 3.12 ou supérieur suffit. Aucun accès réseau ni paquet Python tiers n'est requis par ces commandes.
+La vérification T02 utilise Python 3.12, comme la CI, et les dépendances verrouillées de `requirements-contrats.txt`. Créer un environnement virtuel avant l'installation ; le premier téléchargement exige Internet, les tests ensuite fonctionnent hors ligne. Le contrôle documentaire seul utilise la bibliothèque standard. Les autres versions Python et les versions applicatives restent à vérifier en T01.
+
+Sous Windows PowerShell, depuis la racine :
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-contrats.txt
+.\.venv\Scripts\python.exe scripts/check_repo.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests/contract -v
+```
+
+Ces commandes supposent un Python 3.12 de développement installé. Elles ne démarrent ni application, ni base, ni Orthanc.
 
 Le workflow GitHub Actions exécute les mêmes contrôles. Il ne déploie rien. Il n'a pas été exécuté sur GitHub pendant la préparation du pack.
 

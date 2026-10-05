@@ -2,7 +2,13 @@
 
 ## Un changement, une responsabilité claire
 
-Une branche porte un périmètre borné, par exemple `feat/lab-ingestion`, `feat/ris-workflow` ou `docs/api-contract`. Les identifiants T01 à T12 peuvent être mentionnés dans les descriptions sans être confondus avec les numéros GitHub.
+Une branche porte un périmètre borné, par exemple `codex/t02-contrats-communs`, `feat/t05-ingestion-laboratoire` ou `feat/t06-parcours-radiologie`. Les identifiants T01 à T12 sont des tâches locales, pas des numéros d'issues GitHub. Publier une pull request en brouillon dès la première contribution vérifiable, puis demander une revue avant fusion dans `main`.
+
+## Langue du projet
+
+Documentation, commentaires, docstrings, libellés de l'interface, messages destinés aux utilisateurs, titres d'issues, commits et descriptions de PR sont en français. Les nouveaux identifiants Python propres au projet sont en français sans accents, en `snake_case` : `composer_dossier`, `verifier_acces`, `identifiant_patient`.
+
+Les chemins, clés JSON, noms SQL, codes d'erreur et états machine existants restent stables pour ce contrat v0.1 : `encounter`, `missing`, `LAB_RESULT_MISSING`, etc. Leur signification française est documentée dans [le vocabulaire](contracts/vocabulaire.md). Leur conservation est une décision explicite de compatibilité, pas une consigne d'écrire les nouveaux libellés en anglais. Les symboles imposés par Python, les bibliothèques, HL7 et DICOM restent inchangés. Toute traduction future de l'interface machine modifie ensemble contrat, producteurs, consommateurs et tests.
 
 Une pull request indique le comportement ajouté, les contrats modifiés, les migrations, les tests et les limites connues. Les modifications transversales sont revues par les lots producteurs et consommateurs.
 
@@ -15,6 +21,7 @@ Chaque domaine est propriétaire de ses tables et services. Le lot A coordonne l
 ## Validation
 
 ```bash
+python3 -m pip install -r requirements-contrats.txt
 python3 scripts/check_repo.py
 python3 -m unittest discover -s tests/contract -v
 ```

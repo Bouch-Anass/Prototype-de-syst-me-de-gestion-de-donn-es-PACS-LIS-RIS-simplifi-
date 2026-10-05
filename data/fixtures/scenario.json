@@ -1,5 +1,6 @@
 {
   "synthetic": true,
+  "contract_version": "0.1.0",
   "scenario_id": "DEMO-001",
   "description": "Jeu fictif pour essais logiciels, sans interprétation clinique.",
   "ids": {
@@ -22,6 +23,9 @@
     "source_system": "DEMO-LIS",
     "placer_number": "DEMO-LAB001",
     "filler_number": "DEMO-LIS001",
+    "panel_code": "BILAN_DEMO",
+    "hl7_version": "2.5.1",
+    "hl7_profile": "DEMO-LAB-0.1",
     "expected_observations": [
       {
         "code": "CRP",
@@ -39,6 +43,7 @@
   },
   "imaging": {
     "accession_number": "DEMO-ACC001",
+    "issuer_of_patient_id": "DEMO",
     "study_instance_uid": "2.25.10101",
     "modality": "CT",
     "expected_series_count": 1,

@@ -107,7 +107,7 @@ flowchart TD
 
 Le premier périmètre teste l'ingestion d'une demande `OML^O21`, puis d'un résultat `ORU^R01` envoyé par un simulateur. C'est un sens d'échange de démonstration, pas une description universelle de tous les LIS.
 
-Le profil local HL7 doit être fixé avant le codage. Les champs et segments réellement acceptés seront testés sur des fixtures. Le simple fait de reconnaître le type du message ne prouve pas sa conformité.
+Le [profil local proposé en T02](contracts/hl7.md) précise HL7 2.5.1, les champs, les cardinalités et les réponses. Il doit être relu avant T05. Reconnaître un type de message ne prouve pas sa conformité.
 
 Une CRP attendue mais absente produit une observation `data_status: missing`, sans valeur numérique. Les autres résultats restent exploitables. Une correction produit une nouvelle version du rapport.
 
@@ -160,7 +160,7 @@ Le modèle détaillé et les contraintes sont dans [MODELE_DONNEES.md](docs/MODE
 | HL7 rejoué à l'identique | Pas de nouveau rapport ni observation après un premier traitement réussi |
 | Même identifiant HL7, contenu différent | Conflit explicite, aucune modification silencieuse |
 | Patient inconnu | Rejet/quarantaine logique, aucune création ou fusion automatique |
-| Accès sans droit | HTTP 403 et événement d'audit sans données cliniques |
+| Accès sans droit | 403 pour le rôle, 404 pour un dossier hors affectation ; audit sans données cliniques |
 
 La disponibilité d'Orthanc ne doit pas déterminer seule la readiness de toute l'application. Une vérification technique séparée signale l'état du PACS.
 
