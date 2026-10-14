@@ -5,6 +5,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+infra/.secrets/
 tmp/
 data/local/
 orthanc-storage/
