@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Dossier patient · Démonstration</title>
+    <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <div class="brand" aria-label="Dossier unifié">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>Dossier<span class="brand-light"> unifié</span></span>
+        </div>
+        <div class="header-context">
+          <span class="header-divider" aria-hidden="true"></span>
+          <span>Prototype PACS · LIS · RIS</span>
+        </div>
+        <span class="environment-badge"><span class="environment-dot" aria-hidden="true"></span>Données fictives</span>
+      </div>
+    </header>
+
+    <main class="shell main-content">
+      <nav class="breadcrumb" aria-label="Fil d’Ariane"><span>Espace de démonstration</span><span aria-hidden="true">/</span><strong>Dossier patient</strong></nav>
+
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow accent">VUE UNIFIÉE <span aria-hidden="true">/</span> DEMO-001</p>
+          <h1 id="page-title">Dossier patient</h1>
+          <p class="page-description">Laboratoire, radiologie et imagerie dans une seule vue.</p>
+        </div>
+        <span class="read-only"><span class="read-only-icon" aria-hidden="true"></span>Lecture seule</span>
+      </div>
+
+      <section class="workspace" aria-label="Consultation de démonstration">
+        <div class="control-bar">
+          <form id="patient-search" class="search-form" role="search">
+            <div class="search-field">
+              <label for="identifier">Rechercher un patient</label>
+              <div class="input-wrap">
+                <svg class="search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.3 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                <input id="identifier" name="identifier" autocomplete="off" spellcheck="false" value="DEMO-P001" required />
+              </div>
+            </div>
+            <button class="primary-button" type="submit">Rechercher <span aria-hidden="true">↗</span></button>
+          </form>
+
+          <div class="scenario-group" role="group" aria-label="Choisir un scénario">
+            <span class="scenario-label">Scénario de test</span>
+            <div class="scenario-options">
+              <button class="scenario-button" type="button" data-scenario="nominal" aria-pressed="true">Nominal</button>
+              <button class="scenario-button" type="button" data-scenario="missing-crp" aria-pressed="false">CRP absente</button>
+              <button class="scenario-button" type="button" data-scenario="orthanc-unavailable" aria-pressed="false">PACS indisponible</button>
+            </div>
+          </div>
+        </div>
+
+        <p id="feedback" class="feedback" role="status" aria-live="polite">Chargement du scénario…</p>
+        <div id="record" hidden>
+          <section class="patient-summary" aria-labelledby="patient-name">
+            <div class="patient-identity">
+              <p class="eyebrow">PATIENT FICTIF <span class="identity-separator" aria-hidden="true">·</span> DOSSIER ACTIF</p>
+              <div class="patient-title-row"><h2 id="patient-name"></h2><span id="encounter-status" class="status-pill"></span></div>
+              <p id="patient-details" class="patient-details"></p>
+            </div>
+            <div class="patient-source"><span class="source-mark" aria-hidden="true"></span><span>Vue consolidée<br /><strong>3 systèmes</strong></span></div>
+          </section>
+
+          <div id="warnings" class="warnings" role="status" aria-live="polite" hidden></div>
+
+          <div class="record-grid">
+            <div class="primary-column">
+              <section class="record-section" aria-labelledby="lab-title">
+                <div class="section-head">
+                  <div><p class="eyebrow">01 <span aria-hidden="true">/</span> LIS</p><h3 id="lab-title">Résultats biologiques</h3></div>
+                  <span id="lab-status" class="status-pill"></span>
+                </div>
+                <div class="table-heading" aria-hidden="true"><span>Analyse</span><span>Résultat</span></div>
+                <div id="lab-results"></div>
+                <p id="lab-meta" class="section-footnote"></p>
+              </section>
+
+              <section class="record-section radiology-section" aria-labelledby="ris-title">
+                <div class="section-head">
+                  <div><p class="eyebrow">02 <span aria-hidden="true">/</span> RIS</p><h3 id="ris-title">Examen et compte rendu</h3></div>
+                  <span id="ris-status" class="status-pill"></span>
+                </div>
+                <div id="ris-content"></div>
+              </section>
+            </div>
+
+            <aside class="secondary-column" aria-label="Informations d’imagerie">
+              <section class="record-section imaging-section" aria-labelledby="pacs-title">
+                <div class="section-head">
+                  <div><p class="eyebrow">03 <span aria-hidden="true">/</span> PACS</p><h3 id="pacs-title">Étude d’imagerie</h3></div>
+                  <span id="pacs-status" class="status-pill"></span>
+                </div>
+                <p class="aside-intro">Disponibilité et métadonnées de l’étude liée à cet examen.</p>
+                <div id="pacs-content"></div>
+              </section>
+              <div class="data-note"><span class="note-line" aria-hidden="true"></span><strong>Source des données</strong><p>Réponses synthétiques du contrat API T02.</p></div>
+            </aside>
+          </div>
+        </div>
+      </section>
+      <p class="disclaimer">Données synthétiques à usage logiciel. Cet aperçu n'est pas un outil de diagnostic et ne vérifie pas les droits d'accès.</p>
+    </main>
+  </body>
+</html>
