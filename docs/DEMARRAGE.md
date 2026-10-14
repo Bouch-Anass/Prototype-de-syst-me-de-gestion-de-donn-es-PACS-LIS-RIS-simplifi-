@@ -8,7 +8,7 @@
 - Les modèles d'issues et de pull requests.
 - Les contrôles locaux des documents et des exemples.
 
-Il n'y a pas encore de commande de lancement applicatif, de fichier Compose, de serveur FastAPI ou de projet frontend exécutable. Ils appartiennent au backlog. Aucun dépôt distant n'a été créé ou modifié par la préparation de ce pack.
+T01 fournit maintenant le [Compose PostgreSQL/Orthanc](../infra/README.md) et T02 un [aperçu frontend statique](../frontend/README.md). Aucun serveur FastAPI ni parcours clinique complet n'est encore exécutable. Les sections GitHub ci-dessous sont des consignes historiques du pack initial, pas des actions effectuées par T01/T02.
 
 ## Vérification locale
 
@@ -62,7 +62,7 @@ Un tableau GitHub peut utiliser quatre états : À préparer, Prêt, En cours, �
 
 ## Configuration future
 
-`.env.example` décrit des noms de variables proposés. Copier ce modèle vers un fichier local ignoré uniquement lors de l'implémentation de T01/T03, puis définir des secrets propres à l'environnement.
+`.env.example` décrit des noms de variables proposés pour T03. Les secrets Docker de T01 sont créés par `scripts/init_local_env.py` dans `infra/.secrets/`, hors Git.
 
 Les variables ne sont consommées par aucun programme actuellement. Les paramètres vides ne sont pas une configuration fonctionnelle.
 

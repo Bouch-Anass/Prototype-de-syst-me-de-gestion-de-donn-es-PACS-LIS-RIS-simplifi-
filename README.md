@@ -12,12 +12,12 @@ Ce dépôt conserve les livrables et l'évolution du projet, du cadrage à la d�
 
 | Repère | Situation |
 | --- | --- |
-| Dernière mise à jour | 28 septembre 2026 |
-| Dernière semaine documentée | Semaine 1 |
-| Phase actuelle | Cadrage, besoins et conception initiale |
+| Dernière mise à jour | 13 octobre 2026 |
+| Dernier jalon documenté | T01/T02 en cours |
+| Phase actuelle | Début de réalisation T01/T02 après conception initiale |
 | Livrables disponibles | Six documents PDF : cadrage, besoins, étude PACS/RIS/LIS, normes, architecture et modèle de données |
 | Validation des documents | Revue et arbitrages à consigner ; leur présence ne vaut pas approbation |
-| Implémentation | Squelette d'architecture, contrats, fixtures synthétiques et tests documentaires ; aucun service applicatif exécutable |
+| Implémentation | Compose PostgreSQL/Orthanc préparé, profil HL7 et fixtures synthétiques, aperçu frontend statique ; aucun backend applicatif exécutable |
 | Tests et mesures | Scénarios et objectifs définis ; résultats expérimentaux à produire |
 
 ## Objectif et périmètre
@@ -75,7 +75,7 @@ Le RIS reste un module logique du backend. Les pixels DICOM restent dans Orthanc
 
 ## Démonstration et validation prévues
 
-**Scénario nominal :** le patient fictif `PAT-SIM-0007`, pendant l'épisode `ENC-2026-0091`, bénéficie d'une NFS, d'une CRP et d'un scanner thoracique. Le prototype devra relier les résultats HL7 v2, le compte rendu radiologique et l'étude DICOM, puis afficher le dossier unifié et tracer sa consultation.
+**Scénario nominal :** le patient fictif `DEMO-P001`, pendant la rencontre `DEMO-E001`, bénéficie d'une CRP, d'une analyse de glucose et d'un scanner. Le prototype devra relier les résultats HL7 v2, le compte rendu radiologique et l'étude DICOM, puis afficher le dossier unifié et tracer sa consultation. Le [manifeste synthétique](data/fixtures/scenario.json) fixe les identifiants et valeurs de ce premier jalon.
 
 **Cas dégradé prioritaire :** la valeur CRP est absente ou inexploitable. Les autres informations restent consultables et l'absence est explicitement signalée. Une valeur manquante ne doit jamais être remplacée par zéro.
 
@@ -96,6 +96,7 @@ Le parcours prévu est : **cadrage → exigences → conception → réalisation
 | Semaine | Phase et travail documenté | Livrables / preuves | État et suite |
 | --- | --- | --- | --- |
 | 1 | Cadrage, besoins, étude des systèmes, normes, architecture et modèle initial | [Six PDF de référence](docs/conception/) | Documents déposés ; squelette technique ajouté ; revue et arbitrages à poursuivre |
+| Jalon T01/T02 (13 octobre 2026) | Préparation de l'environnement local, du profil d'échange, du jeu commun et de l'aperçu web | [Compose](infra/compose.yaml), [profil HL7](contracts/hl7-profile.md), [frontend](frontend/README.md) | Contrôles documentaires et 17 tests de contrat réussis ; Docker absent du poste de préparation, services non démarrés |
 
 ### Mettre à jour ce README chaque semaine
 
@@ -132,8 +133,8 @@ Modèle à copier dans le bilan de chaque nouvelle semaine :
 
 Le dépôt contient maintenant le squelette général qui guidera l'implémentation : backend modulaire FastAPI, PostgreSQL, Orthanc, contrats API/HL7/DICOM, simulateurs, fixtures synthétiques, backlog, règles de contribution, sécurité et contrôles de contrat. Consultez [le backlog](docs/BACKLOG.md) et [le guide de démarrage](docs/DEMARRAGE.md) avant de créer du code applicatif.
 
-Le squelette est volontairement documentaire. Les choix encore ouverts sont listés dans [les décisions](docs/DECISIONS.md), notamment le frontend, l'authentification détaillée, le profil HL7 et les versions exactes des outils.
+Le backend reste un squelette. Les choix du premier jalon T01/T02 et les points encore ouverts sont listés dans [les décisions](docs/DECISIONS.md). Le frontend de démonstration s'appuie sur [DESIGN.md](DESIGN.md) et affiche les exemples JSON sans API métier.
 
 ## Installation et exécution
 
-Le dépôt contient actuellement la documentation initiale. Les dépendances, configurations et commandes d'installation seront ajoutées avec le premier incrément exécutable, puis vérifiées sur un second poste. Aucun lancement d'application n'est disponible à ce stade.
+Un [guide T01](infra/README.md) décrit l'initialisation des secrets et le démarrage local de PostgreSQL/Orthanc avec Docker Compose. Un [aperçu frontend statique](frontend/README.md) est exécutable avec le serveur HTTP de Python. Le backend métier, les migrations, l'ingestion HL7 et l'accès contrôlé aux images restent à implémenter. Le démarrage Compose n'a pas pu être vérifié sur ce poste faute de Docker.

@@ -11,14 +11,14 @@ Ce fichier distingue les éléments repris de la conception et les précisions p
 | D05 | Réponse de synthèse commune et mocks JSON | Proposition de contrat | Frontend indépendant de l'avancement des connecteurs |
 | D06 | RIS implémenté dans le backend | Proposition de périmètre | Pas de RIS externe supplémentaire |
 | D07 | Ingestion OML puis ORU depuis le simulateur | Proposition de premier flux | Pas de prescription sortante bidirectionnelle à ce stade |
-| D08 | HTTP interne pour le premier test HL7, MLLP ensuite si retenu | À confirmer en T02 | Même pipeline métier, transport interchangeable |
+| D08 | HTTP interne pour le premier test HL7 ; MLLP différé | Fixé pour le premier jalon T02 | Même pipeline métier, transport interchangeable ; endpoint hors proxy public |
 | D09 | État d'imagerie daté et timeout Orthanc court | Proposition | Dégradation locale, pas de blocage de tout le dossier |
 | D10 | Échec d'audit : refus des opérations cliniques | Proposition à tester | Pas d'accès clinique silencieusement non tracé |
-| D11 | Frontend : framework à choisir avant T09 | Ouvert | React avec TypeScript est une option, non une dépendance déjà imposée |
-| D12 | Schéma d'authentification et durée des sessions | Ouvert | Pas de choix implicite entre cookies et tokens |
-| D13 | Version HL7, champs obligatoires, ACK, encodage et transport | Ouvert, bloquant pour le parseur | Pas de conformité présumée d'après le seul nom de message |
+| D11 | Aperçu T02 en HTML/CSS/JavaScript sans framework ; garder les mocks comme frontière | Fixé pour le premier jalon | Pas de dépendances npm ; choix à revoir explicitement avant une interface T09 plus large |
+| D12 | Session applicative côté serveur, cookie HttpOnly, SameSite=Lax ; 30 min d'inactivité, 8 h maximum | Contrat fixé pour T03, non implémenté | HTTPS impose Secure ; protection CSRF sur mutations ; rôle et contexte patient vérifiés côté backend |
+| D13 | Profil local HL7 v2.5.1 UTF-8 OML^O21 / ORU^R01, ACK original après commit et HTTP interne | Fixé pour le premier jalon T02 | Champs, cardinalités, erreurs et fixtures dans `contracts/hl7-profile.md` ; conformité générale non revendiquée |
 | D14 | Viewer et éventuel plugin DICOMweb | Ouvert | REST Orthanc suffit pour le rapprochement initial |
-| D15 | Versions exactes des outils et images de conteneurs | À fixer en T01 | Verrouillage avant le premier déploiement reproductible |
+| D15 | Images `postgres:17.11-bookworm` et `orthancteam/orthanc:26.9.1` | Fixé pour T01, démarrage à vérifier avec Docker | Versions explicites ; mise à jour volontaire et testée, sans tag `latest` |
 | D16 | Licence du dépôt et des données de démonstration | Ouvert | Aucune licence ajoutée automatiquement |
 
 ## Gestion des changements

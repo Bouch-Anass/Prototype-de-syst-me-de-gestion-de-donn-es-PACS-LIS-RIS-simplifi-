@@ -8,13 +8,16 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = (
-    "README.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "SECURITY.md",
+    "README.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "SECURITY.md", "DESIGN.md",
     ".env.example", ".gitignore", ".gitattributes",
     "docs/REPARTITION_TRAVAIL.md", "docs/BACKLOG.md", "docs/MODELE_DONNEES.md",
     "docs/DEMARRAGE.md", "docs/DECISIONS.md", "docs/REFERENCES.md",
-    "backend/README.md", "frontend/README.md", "infra/README.md",
-    "contracts/api.md", "contracts/hl7.md", "contracts/imaging.md",
+    "backend/README.md", "frontend/README.md", "frontend/index.html", "frontend/styles.css", "frontend/app.js",
+    "infra/README.md", "infra/compose.yaml", "scripts/init_local_env.py", "scripts/generate_hl7_fixtures.py",
+    "contracts/api.md", "contracts/hl7.md", "contracts/hl7-profile.md", "contracts/imaging.md", "contracts/service-interfaces.md",
     "data/fixtures/scenario.json",
+    "data/dicom/study-metadata.json",
+    "data/hl7/order.oml.hl7", "data/hl7/result.nominal.oru.hl7", "data/hl7/result.missing-crp.oru.hl7", "data/hl7/result.correction.oru.hl7",
     "contracts/examples/summary.nominal.json",
     "contracts/examples/summary.missing-crp.json",
     "contracts/examples/summary.orthanc-unavailable.json",
