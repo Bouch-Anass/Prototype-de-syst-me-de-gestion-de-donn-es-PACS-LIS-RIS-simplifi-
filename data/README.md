@@ -5,8 +5,8 @@ Le [manifeste commun](fixtures/scenario.json) est la référence des identifiant
 | Dossier | Contenu |
 |---|---|
 | `fixtures/` | Patient, rencontre, commandes et références synthétiques communes |
-| `hl7/` | Profil et futurs messages HL7 synthétiques |
-| `dicom/` | Consignes des futurs jeux DICOM |
+| `hl7/` | Messages HL7 synthétiques générés depuis le manifeste |
+| `dicom/` | Clés de rapprochement et consignes du futur fichier DICOM |
 | `generated/` | Sorties locales générées, ignorées par Git |
 
 Les UUID et le Study Instance UID fixes servent uniquement au scénario isolé DEMO-001. D'autres scénarios doivent générer des identifiants distincts. Ils ne constituent pas une stratégie d'identification de production.

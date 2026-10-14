@@ -13,7 +13,7 @@
 | `POST /internal/hl7/messages` | Transport HTTP de test, si retenu | Compte de service ; réseau interne uniquement |
 | `GET /health/ready` | État prêt/non prêt du service métier | Réponse technique minimale |
 
-Les détails de login dépendent de D12. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le choix entre 403 explicite et 404 de non-divulgation pour une ressource précise doit rester uniforme et documenté.
+D12 fixe pour T03 une session côté serveur avec cookie HttpOnly et SameSite=Lax, expiration après 30 minutes d'inactivité et 8 heures au maximum ; `Secure` sera requis sous HTTPS et les mutations seront protégées contre CSRF. Aucun de ces mécanismes n'est encore implémenté. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le premier jalon retourne 403 pour une ressource existante hors contexte et 404 pour une ressource inexistante, sans contenu clinique dans les deux cas.
 
 ## Propositions de routes d'écriture, à valider avant implémentation
 
@@ -77,7 +77,7 @@ Exemple fictif :
 | Situation | HTTP attendu |
 |---|---|
 | Absence d'authentification ou session invalide | 401 |
-| Droit insuffisant | 403, sous réserve de la règle uniforme de non-divulgation |
+| Droit insuffisant sur ressource existante | 403, sans données cliniques |
 | Ressource inexistante | 404 |
 | Réutilisation incohérente d'identifiant métier | 409 |
 | Données d'entrée invalides | 422 |

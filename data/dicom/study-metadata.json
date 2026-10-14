@@ -1,0 +1,11 @@
+{
+  "synthetic": true,
+  "scenario_id": "DEMO-001",
+  "patient_id": "DEMO-P001",
+  "identifier_domain": "DEMO",
+  "accession_number": "DEMO-ACC001",
+  "study_instance_uid": "2.25.10101",
+  "modality": "CT",
+  "expected_series_count": 1,
+  "expected_instance_count": 1
+}

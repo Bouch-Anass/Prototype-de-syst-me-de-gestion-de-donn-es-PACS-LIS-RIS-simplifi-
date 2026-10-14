@@ -24,7 +24,7 @@ Le backend utilise l'API REST privée Orthanc pour le rapprochement et l'état. 
 | ID interne Orthanc | Accès technique au PACS | Peut être conservé côté serveur, pas utilisé comme identité clinique |
 | UUID d'examen | Relation métier | Lie l'étude au RIS |
 
-Si le jeu DICOM ne transporte pas l'autorité d'identification, le périmètre mono-source doit fixer explicitement le domaine au niveau de l'importateur. Il ne faut pas inventer un domaine différent dans chaque lot.
+Si le jeu DICOM ne transporte pas l'autorité d'identification, l'importateur du scénario mono-source utilise le domaine `DEMO` fixé dans le [manifeste](../data/fixtures/scenario.json), puis confronte `PatientID`, accession et Study Instance UID à la [fixture de métadonnées](../data/dicom/study-metadata.json). Il ne faut pas inventer un domaine différent dans chaque lot.
 
 L'absence ou la contradiction d'une clé bloque le rattachement automatique. Une fonctionnalité de résolution manuelle contrôlée pourra être ajoutée ; ce n'est pas une association arbitraire par nom.
 

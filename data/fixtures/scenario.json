@@ -16,7 +16,21 @@
     "identifier_domain": "DEMO",
     "patient_external_id": "DEMO-P001",
     "encounter_external_id": "DEMO-E001",
-    "dicom_patient_id": "DEMO-P001"
+    "dicom_patient_id": "DEMO-P001",
+    "dicom_identifier_domain": "DEMO"
+  },
+  "hl7": {
+    "version": "2.5.1",
+    "sending_application": "DEMO-LIS",
+    "sending_facility": "DEMO",
+    "receiving_application": "PACS-RIS-LIS",
+    "receiving_facility": "DEMO",
+    "order_message_control_id": "DEMO-OML-001",
+    "result_message_control_id": "DEMO-ORU-001",
+    "missing_crp_message_control_id": "DEMO-ORU-MISSING-CRP-001",
+    "correction_message_control_id": "DEMO-ORU-CORRECTION-001",
+    "panel_code": "LAB-PANEL",
+    "panel_display": "Panel demo"
   },
   "laboratory": {
     "source_system": "DEMO-LIS",
@@ -27,13 +41,16 @@
         "code": "CRP",
         "coding_system": "DEMO",
         "display": "CRP",
-        "unit": "mg/L"
+        "unit": "mg/L",
+        "nominal_value_numeric": 3.2,
+        "corrected_value_numeric": 3.4
       },
       {
         "code": "GLU",
         "coding_system": "DEMO",
         "display": "Glucose",
-        "unit": "mmol/L"
+        "unit": "mmol/L",
+        "nominal_value_numeric": 4.8
       }
     ]
   },

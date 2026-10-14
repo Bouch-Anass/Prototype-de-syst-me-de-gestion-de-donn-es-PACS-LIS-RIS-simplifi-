@@ -6,7 +6,9 @@ Les contrats constituent la frontière commune entre les lots. Ils décrivent le
 |---|---|
 | [API](api.md) | Routes, droits, réponses et erreurs |
 | [HL7](hl7.md) | Réception, mapping métier, rejouabilité et ACK |
+| [Profil HL7 local](hl7-profile.md) | Champs et messages exacts du scénario synthétique |
 | [Imagerie](imaging.md) | Import, rapprochement, disponibilité et accès |
+| [Interfaces de services](service-interfaces.md) | Entrées, sorties et erreurs entre les lots |
 | [Exemples de synthèse](examples/README.md) | Mocks pour le frontend et cibles pour le backend |
 
 ## Règles communes

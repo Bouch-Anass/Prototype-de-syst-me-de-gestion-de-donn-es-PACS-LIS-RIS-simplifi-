@@ -4,9 +4,9 @@
 
 Le premier parcours importe une demande de laboratoire puis ses résultats depuis un simulateur. Les messages ciblés sont `OML^O21` et `ORU^R01`.
 
-La version HL7 exacte, le profil de segments, les champs obligatoires, le jeu de caractères, le fuseau, les acquittements et le transport sont à fixer en T02. Aucun message brut prétendument conforme n'est fourni avant cette décision.
+Le premier [profil local](hl7-profile.md) fixe HL7 v2.5.1, les segments et champs acceptés, l'encodage, le fuseau, les acquittements et le transport. Les [messages synthétiques](../data/hl7/README.md) sont vérifiés par les tests de contrat ; ils ne prouvent pas une conformité universelle HL7.
 
-## Mapping sémantique à finaliser
+## Mapping sémantique du premier jalon
 
 | Information HL7 | Destination | Vérification |
 |---|---|---|
@@ -17,7 +17,7 @@ La version HL7 exacte, le profil de segments, les champs obligatoires, le jeu de
 | Code, type, valeur, unité et état d'observation dans OBX | `lab_observation` | Type, code local et cohérence de valeur |
 | État de résultat et correction selon le profil | Version du rapport | Pas d'écrasement silencieux |
 
-Ce tableau n'est pas une grammaire de message. La position exacte et la cardinalité de chaque segment dépendent du profil choisi, notamment pour OML. Les tests de parsing devront utiliser ce profil, pas une liste de segments supposée universelle.
+Ce tableau n'est pas une grammaire de message. Les positions et cardinalités du sous-ensemble DEMO-001 sont fixées dans le [profil local](hl7-profile.md), notamment pour OML. Les tests de parsing devront utiliser ce profil, pas une liste de segments supposée universelle.
 
 ## Chaîne de traitement
 
@@ -30,7 +30,7 @@ Ce tableau n'est pas une grammaire de message. La position exacte et la cardinal
 7. Produire un ACK conforme au profil après le commit.
 8. Conserver une trace minimale de résultat de traitement.
 
-Si la transaction échoue, aucun ACK de réussite métier n'est envoyé. Une erreur technique temporaire et un rejet fonctionnel doivent être distingués. Les codes d'ACK exacts et la stratégie de retransmission seront fixés avec le mode d'acquittement retenu.
+Si la transaction échoue, aucun ACK de réussite métier n'est envoyé. Le profil local fixe `AA` après commit, `AE` pour un échec temporaire et `AR` pour un rejet ; la stratégie de retransmission du simulateur sera mise en œuvre et testée avec T05.
 
 ## Rejeu et corrections
 
@@ -49,11 +49,11 @@ Le hash est calculé de façon déterministe sur le contenu reçu après retrait
 
 Le manifeste synthétique annonce les analyses attendues. Si la CRP attendue n'est pas fournie, l'application produit son état `missing`, avec valeurs nulles et avertissement. Elle ne fabrique pas un résultat clinique et ne rejette pas nécessairement les observations valides du même rapport.
 
-Une analyse non demandée, inconnue ou mal typée relève d'une règle distincte de validation, à documenter avant acceptation.
+Une analyse non demandée, inconnue ou mal typée est rejetée par le profil local du premier jalon.
 
 ## Transport et confidentialité
 
-L'endpoint HTTP interne est un adaptateur de test, non un remplacement universel de MLLP. S'il est retenu, l'enveloppe, le type de contenu, le compte de service et le format de retour ACK seront définis en T02. Le proxy public ne l'expose pas.
+L'endpoint HTTP interne est un adaptateur de test, non un remplacement universel de MLLP. Son enveloppe, type de contenu, authentification de service et ACK sont fixés dans le [profil local](hl7-profile.md). Le proxy public ne l'expose pas.
 
 Un listener MLLP ultérieur utilise le même traitement métier. Le transport est limité au réseau de démonstration. Ni MLLP brut ni le simple usage de HL7 ne garantissent le chiffrement.
 
