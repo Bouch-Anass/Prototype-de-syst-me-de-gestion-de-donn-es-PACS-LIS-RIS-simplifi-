@@ -2,7 +2,7 @@
 
 Les identifiants T01 à T12 sont des repères locaux, pas des numéros d'issues GitHub. Chaque section peut devenir une issue à partir du modèle fourni.
 
-État au 13 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats sont prêts pour l'implémentation, sous réserve de la revue d'équipe. Les services métier T03–T12 ne sont pas livrés.
+État au 19 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. Elle est testée sur SQLite en mémoire, mais pas encore sur PostgreSQL. Les services métier T04–T12 ne sont pas livrés.
 
 ## T01 : environnement local reproductible
 

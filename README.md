@@ -12,13 +12,13 @@ Ce dépôt conserve les livrables et l'évolution du projet, du cadrage à la d�
 
 | Repère | Situation |
 | --- | --- |
-| Dernière mise à jour | 13 octobre 2026 |
-| Dernier jalon documenté | T01/T02 en cours |
-| Phase actuelle | Début de réalisation T01/T02 après conception initiale |
+| Dernière mise à jour | 19 octobre 2026 |
+| Dernier jalon documenté | Première tranche T03 ajoutée ; intégration PostgreSQL à vérifier |
+| Phase actuelle | Réalisation du socle backend après T01/T02 |
 | Livrables disponibles | Six documents PDF : cadrage, besoins, étude PACS/RIS/LIS, normes, architecture et modèle de données |
 | Validation des documents | Revue et arbitrages à consigner ; leur présence ne vaut pas approbation |
-| Implémentation | Compose PostgreSQL/Orthanc préparé, profil HL7 et fixtures synthétiques, aperçu frontend statique ; aucun backend applicatif exécutable |
-| Tests et mesures | Scénarios et objectifs définis ; résultats expérimentaux à produire |
+| Implémentation | Compose PostgreSQL/Orthanc préparé, profil HL7 et fixtures, aperçu frontend statique ; backend T03 avec migration, sessions, recherche patient, accès aux rencontres et audit |
+| Tests et mesures | 17 tests de contrat et 9 tests backend SQLite réussis ; intégration PostgreSQL et scénario complet à vérifier |
 
 ## Objectif et périmètre
 
@@ -97,6 +97,7 @@ Le parcours prévu est : **cadrage → exigences → conception → réalisation
 | --- | --- | --- | --- |
 | 1 | Cadrage, besoins, étude des systèmes, normes, architecture et modèle initial | [Six PDF de référence](docs/conception/) | Documents déposés ; squelette technique ajouté ; revue et arbitrages à poursuivre |
 | Jalon T01/T02 (13 octobre 2026) | Préparation de l'environnement local, du profil d'échange, du jeu commun et de l'aperçu web | [Compose](infra/compose.yaml), [profil HL7](contracts/hl7-profile.md), [frontend](frontend/README.md) | Contrôles documentaires et 17 tests de contrat réussis ; Docker absent du poste de préparation, services non démarrés |
+| Tranche T03 (19 octobre 2026) | Début du backend identité, droits et audit | [Backend](backend/README.md), [migration](backend/migrations/versions/0001_t03_foundation.py), [tests](tests/backend/test_t03_api.py) | 9 tests SQLite et contrôle de migration réussis ; PostgreSQL non testé faute de Docker |
 
 ### Mettre à jour ce README chaque semaine
 
@@ -133,8 +134,8 @@ Modèle à copier dans le bilan de chaque nouvelle semaine :
 
 Le dépôt contient maintenant le squelette général qui guidera l'implémentation : backend modulaire FastAPI, PostgreSQL, Orthanc, contrats API/HL7/DICOM, simulateurs, fixtures synthétiques, backlog, règles de contribution, sécurité et contrôles de contrat. Consultez [le backlog](docs/BACKLOG.md) et [le guide de démarrage](docs/DEMARRAGE.md) avant de créer du code applicatif.
 
-Le backend reste un squelette. Les choix du premier jalon T01/T02 et les points encore ouverts sont listés dans [les décisions](docs/DECISIONS.md). Le frontend de démonstration s'appuie sur [DESIGN.md](DESIGN.md) et affiche les exemples JSON sans API métier.
+Le backend possède maintenant une première tranche T03. Les choix du premier jalon T01/T02 et les points encore ouverts sont listés dans [les décisions](docs/DECISIONS.md). Le frontend de démonstration s'appuie sur [DESIGN.md](DESIGN.md) et affiche toujours les exemples JSON sans connexion à l'API métier.
 
 ## Installation et exécution
 
-Un [guide T01](infra/README.md) décrit l'initialisation des secrets et le démarrage local de PostgreSQL/Orthanc avec Docker Compose. Un [aperçu frontend statique](frontend/README.md) est exécutable avec le serveur HTTP de Python. Le backend métier, les migrations, l'ingestion HL7 et l'accès contrôlé aux images restent à implémenter. Le démarrage Compose n'a pas pu être vérifié sur ce poste faute de Docker.
+Un [guide T01](infra/README.md) décrit l'initialisation des secrets et le démarrage local de PostgreSQL/Orthanc avec Docker Compose. Le [guide backend T03](backend/README.md) décrit migration, création d'un utilisateur et recherche autorisée du patient synthétique. Un [aperçu frontend statique](frontend/README.md) reste exécutable avec le serveur HTTP de Python. L'ingestion HL7, la synthèse et l'accès contrôlé aux images restent à implémenter. Le démarrage Compose n'a pas pu être vérifié sur ce poste faute de Docker.
