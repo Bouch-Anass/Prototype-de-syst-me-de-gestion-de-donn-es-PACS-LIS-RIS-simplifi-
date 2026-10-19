@@ -62,7 +62,7 @@ Un tableau GitHub peut utiliser quatre états : À préparer, Prêt, En cours, �
 
 ## Configuration future
 
-`.env.example` décrit des noms de variables proposés pour T03. Les secrets Docker de T01 sont créés par `scripts/init_local_env.py` dans `infra/.secrets/`, hors Git.
+`.env.example` décrit les variables utilisées par la première tranche T03 ainsi que celles prévues pour les intégrations futures. Les secrets Docker de T01 sont créés par `scripts/init_local_env.py` dans `infra/.secrets/`, hors Git. Le [guide backend](../backend/README.md) décrit la migration et la recherche du patient synthétique.
 
 Les variables ne sont consommées par aucun programme actuellement. Les paramètres vides ne sont pas une configuration fonctionnelle.
 

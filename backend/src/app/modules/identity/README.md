@@ -8,5 +8,5 @@ Tables : patient, encounter.
 
 Invariants : Aucun rapprochement par nom ; une rencontre appartient au bon patient.
 
-À créer avec la première fonctionnalité : routes si nécessaires, schémas, services, repository, modèles et tests unitaires. Ne pas ajouter de fichiers vides pour donner l'apparence d'une implémentation.
+T03 fournit la résolution exacte domaine/identifiant, la recherche et la liste des rencontres accordées à l'utilisateur. Les tables patient et encounter sont créées par `0001_t03`. Les autres opérations d'identité restent à définir avant exposition.
 

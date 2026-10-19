@@ -1,6 +1,6 @@
 # Modèle de données d'implémentation
 
-Ce modèle reprend les entités du document de conception. Les contraintes SQL et les migrations restent à écrire. Les UUID sont les identifiants internes ; les identifiants externes ne les remplacent pas.
+Ce modèle reprend les entités du document de conception. La migration T03 crée patient, rencontre, utilisateurs, rôles, accès, sessions et audit avec leurs premières contraintes. Les tables des lots B et C et leurs migrations restent à écrire. Les UUID sont les identifiants internes ; les identifiants externes ne les remplacent pas.
 
 ## Vue relationnelle principale
 
@@ -40,11 +40,13 @@ Le compte rendu radiologique est un document courant avec états `draft/final/am
 | Table | Champs ou relations | Règles |
 |---|---|---|
 | `inbound_message` | id, source_system, external_message_id, message_type, received_at, processing_status, payload_hash, error_code | Unicité du couple source/identifiant ; pas de payload clinique dans les logs |
-| `app_user` | id et identité d'authentification | Schéma détaillé défini par T03 ; aucun mot de passe en clair |
+| `app_user` | id, username, hash scrypt, état actif et blocage temporaire | Aucun mot de passe en clair ; cinq échecs entraînent un blocage de 15 minutes |
 | `role`, `user_role` | Rôles et association utilisateurs/rôles | Attribution explicite ; droits évalués côté serveur |
+| `user_encounter_access` | utilisateur et rencontre autorisée | Le rôle seul ne confère pas de contexte clinique |
+| `app_session` | hash du jeton et du jeton CSRF, utilisateur, dates d'activité et d'expiration | Session opaque, 30 minutes d'inactivité et 8 heures maximum |
 | `audit_event` | id, actor_user_id, action, resource_type, resource_id, outcome, correlation_id, occurred_at, client_ip facultative | Acteur nullable pour un processus système identifié ; données minimales |
 
-Les tables d'authentification sont un périmètre à préciser, pas un schéma SQL livré.
+Ces tables transversales sont livrées par la migration T03. La validation de leur comportement sur PostgreSQL reste à faire.
 
 ## Invariants
 

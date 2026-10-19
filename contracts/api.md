@@ -13,7 +13,9 @@
 | `POST /internal/hl7/messages` | Transport HTTP de test, si retenu | Compte de service ; réseau interne uniquement |
 | `GET /health/ready` | État prêt/non prêt du service métier | Réponse technique minimale |
 
-D12 fixe pour T03 une session côté serveur avec cookie HttpOnly et SameSite=Lax, expiration après 30 minutes d'inactivité et 8 heures au maximum ; `Secure` sera requis sous HTTPS et les mutations seront protégées contre CSRF. Aucun de ces mécanismes n'est encore implémenté. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le premier jalon retourne 403 pour une ressource existante hors contexte et 404 pour une ressource inexistante, sans contenu clinique dans les deux cas.
+D12 fixe pour T03 une session côté serveur avec cookie HttpOnly et SameSite=Lax, expiration après 30 minutes d'inactivité et 8 heures au maximum ; `Secure` est activé sous `APP_ENV=production` avec origine HTTPS. Le login vérifie l'origine ; les mutations authentifiées utilisent l'origine et `X-CSRF-Token`. Ces mécanismes sont implémentés dans la première tranche T03 pour login, logout, recherche et rencontres. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le premier jalon retourne 403 pour une ressource existante hors contexte et 404 pour une ressource inexistante, sans contenu clinique dans les deux cas.
+
+La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. Les autres routes de cette table sont encore à développer.
 
 ## Propositions de routes d'écriture, à valider avant implémentation
 

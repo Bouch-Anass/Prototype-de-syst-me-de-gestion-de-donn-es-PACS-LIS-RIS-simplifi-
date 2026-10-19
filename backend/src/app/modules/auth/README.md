@@ -8,5 +8,5 @@ Tables : app_user, role, user_role.
 
 Invariants : Un administrateur technique n'obtient pas automatiquement l'accès clinique.
 
-À créer avec la première fonctionnalité : routes si nécessaires, schémas, services, repository, modèles et tests unitaires. Ne pas ajouter de fichiers vides pour donner l'apparence d'une implémentation.
+T03 fournit les comptes créés localement sans identifiants par défaut, le hash scrypt, les rôles, les sessions opaques côté serveur, le blocage temporaire après échecs et le contrôle CSRF sur la déconnexion. Les droits cliniques exigent aussi un accès explicite à la rencontre.
 
