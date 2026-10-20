@@ -2,7 +2,7 @@
 
 Les identifiants T01 à T12 sont des repères locaux, pas des numéros d'issues GitHub. Chaque section peut devenir une issue à partir du modèle fourni.
 
-État au 19 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. Elle est testée sur SQLite en mémoire, mais pas encore sur PostgreSQL. Les services métier T04–T12 ne sont pas livrés.
+État au 21 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. T04 possède un service interne pour les demandes, résultats, valeurs manquantes, rejeux et corrections, ainsi que des tests SQLite. La migration `0002_domains` crée aussi les tables RIS et imagerie, mais leurs services ne sont pas livrés. PostgreSQL n'a pas encore été vérifié ; T05–T12 restent à réaliser.
 
 ## T01 : environnement local reproductible
 
@@ -35,6 +35,8 @@ Lot B. Dépendance : T02 ; intégration avec T03.
 Implémenter commandes, rapports, observations, règles de valeurs manquantes et corrections. Les tests unitaires peuvent débuter avant la disponibilité de l'API.
 
 Acceptation : une observation disponible porte une valeur ; la CRP manquante reste nulle ; une correction crée une nouvelle version ; aucune écriture dans les tables d'identité hors service prévu.
+
+État : service interne et projection implémentés ; cinq tests métier et un test de migration passent sur SQLite. L'adaptateur HL7, les essais concurrents et PostgreSQL restent à valider.
 
 ## T05 : adaptateur et simulateur HL7
 

@@ -1,8 +1,8 @@
 # Backend
 
-Le premier service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Les adaptateurs HL7, Orthanc et la synthèse clinique restent à développer.
+Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède maintenant ses ingestions et sa projection internes, testées sur SQLite. Les adaptateurs HL7, Orthanc et la synthèse clinique restent à développer.
 
-L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. Aucun schéma n'est créé automatiquement lors des requêtes.
+L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie ; seuls les services laboratoire sont actuellement implémentés. Aucun schéma n'est créé automatiquement lors des requêtes.
 
 | Emplacement | Responsabilité |
 |---|---|

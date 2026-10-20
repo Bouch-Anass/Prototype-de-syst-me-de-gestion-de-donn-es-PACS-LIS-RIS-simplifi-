@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="Statut : prototype T03 en cours" src="https://img.shields.io/badge/status-prototype%20T03-6647F0?style=for-the-badge">
+  <img alt="Statut : prototype T04 en cours" src="https://img.shields.io/badge/status-prototype%20T04-6647F0?style=for-the-badge">
   <img alt="Données synthétiques uniquement" src="https://img.shields.io/badge/data-synthetic%20only-008F73?style=for-the-badge">
   <a href="https://github.com/Bouch-Anass/Prototype-de-syst-me-de-gestion-de-donn-es-PACS-LIS-RIS-simplifi-/actions/workflows/check-architecture.yml">
     <img alt="État du workflow de vérification" src="https://github.com/Bouch-Anass/Prototype-de-syst-me-de-gestion-de-donn-es-PACS-LIS-RIS-simplifi-/actions/workflows/check-architecture.yml/badge.svg?branch=main">
@@ -40,7 +40,7 @@ La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, l
 | Ce qui se visite ou se teste aujourd'hui | État |
 | --- | --- |
 | [Aperçu web](frontend/README.md) : dossier synthétique, CRP absente et PACS indisponible | Fonctionne sur trois réponses JSON fictives ; pas encore connecté à l'API |
-| [Backend FastAPI](backend/README.md) : session, recherche exacte, rencontres autorisées et audit | Implémenté et testé sur SQLite ; PostgreSQL reste à vérifier |
+| [Backend FastAPI](backend/README.md) : session, identité, audit et service laboratoire interne | Implémenté et testé sur SQLite ; PostgreSQL reste à vérifier |
 | [Environnement local](infra/README.md) : PostgreSQL et Orthanc dans Docker Compose | Configuration prête ; démarrage et persistance non vérifiés sur ce poste |
 | [Contrats](contracts/README.md) HL7 v2.5.1, API et imagerie | Documentés avec fixtures ; intégrations métier à construire |
 
@@ -73,7 +73,7 @@ Les traits pointillés montrent les intégrations encore à réaliser. Les pixel
 
 | Couche | Technologie | Situation |
 | --- | --- | --- |
-| API | Python, FastAPI, SQLAlchemy, Alembic | Socle T03 implémenté |
+| API | Python, FastAPI, SQLAlchemy, Alembic | Socle T03 et service laboratoire T04 implémentés |
 | Données métier | PostgreSQL 17 | Compose préparé ; tests applicatifs actuels sur SQLite |
 | PACS | Orthanc | Compose préparé ; intégration et viewer à venir |
 | Interface | HTML, CSS, JavaScript | Aperçu statique sur mocks |
@@ -85,7 +85,7 @@ Le [manifeste commun](data/fixtures/scenario.json) suit le patient `DEMO-P001` p
 
 ## Vérifications
 
-Les derniers contrôles documentés ont réussi : **17 tests de contrat**, **9 tests backend sur SQLite**, contrôle des liens et fichiers du dépôt, et migration Alembic vérifiée sur une base SQLite temporaire. La connexion PostgreSQL, les healthchecks Docker, la persistance et le parcours complet restent à mesurer. Voir les [preuves et limites](docs/VERIFICATIONS.md).
+Les derniers contrôles documentés ont réussi : **17 tests de contrat**, **15 tests backend sur SQLite**, contrôle des liens et fichiers du dépôt, et migrations Alembic vérifiées sur une base SQLite temporaire. La connexion PostgreSQL, les healthchecks Docker, la persistance et le parcours complet restent à mesurer. Voir les [preuves et limites](docs/VERIFICATIONS.md).
 
 ```bash
 python3 scripts/check_repo.py
@@ -112,7 +112,8 @@ python3 -m unittest discover -s tests/backend -v
 - [x] **T01/T02 — préparation :** Compose local, contrats, profil HL7, fixtures et aperçu web.
 - [x] **T03 — première tranche :** migration, identité synthétique, sessions, accès par rencontre et audit.
 - [ ] **Validation PostgreSQL :** démarrage depuis un clone, migration et persistance des volumes.
-- [ ] **T04–T07 :** laboratoire, ingestion HL7, workflow RIS et rapprochement Orthanc.
+- [x] **T04 — service laboratoire :** demandes, résultats, valeurs manquantes, rejeux et corrections testés sur SQLite.
+- [ ] **T05–T07 :** adaptateur HL7, workflow RIS et rapprochement Orthanc.
 - [ ] **T08–T11 :** synthèse clinique, interface reliée à l'API, viewer contrôlé et parcours intégré.
 - [ ] **T12 :** démonstration reproductible et bilan final.
 
@@ -137,6 +138,7 @@ Le [backlog détaillé](docs/BACKLOG.md) donne les critères d'acceptation de ch
 | Semaine 1 | Six PDF : cadrage, besoins, étude PACS/RIS/LIS, normes, architecture et modèle de données | Documents déposés ; revue d'équipe à poursuivre |
 | T01/T02 · 13 octobre 2026 | Compose, profil HL7, jeu synthétique et aperçu web | 17 tests de contrat réussis ; Docker non vérifié |
 | T03 · 19 octobre 2026 | Backend identité, droits et audit | 9 tests SQLite et contrôle de migration réussis ; PostgreSQL non vérifié |
+| T04 · 21 octobre 2026 | Service laboratoire et migration des domaines | 6 nouveaux tests SQLite réussis ; adaptateur HL7 et PostgreSQL non vérifiés |
 
 La filière INDIA de l'ENSAM Rabat mène ce mini-projet en équipe de six membres pendant l'année universitaire 2026–2027. Le suivi hebdomadaire doit distinguer ce qui est **proposé, implémenté, testé et validé** ; les [modèles de travail](docs/03-working-templates.md) et les [documents de conception](docs/conception/) restent les références de départ.
 

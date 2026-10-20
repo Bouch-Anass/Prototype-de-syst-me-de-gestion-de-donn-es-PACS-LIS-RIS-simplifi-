@@ -1,6 +1,6 @@
 # Modèle de données d'implémentation
 
-Ce modèle reprend les entités du document de conception. La migration T03 crée patient, rencontre, utilisateurs, rôles, accès, sessions et audit avec leurs premières contraintes. Les tables des lots B et C et leurs migrations restent à écrire. Les UUID sont les identifiants internes ; les identifiants externes ne les remplacent pas.
+Ce modèle reprend les entités du document de conception. La migration T03 crée patient, rencontre, utilisateurs, rôles, accès, sessions et audit avec leurs premières contraintes. La migration `0002_domains` ajoute les tables des lots B et C ; le service laboratoire est implémenté, les services RIS et imagerie restent à écrire. Les UUID sont les identifiants internes ; les identifiants externes ne les remplacent pas.
 
 ## Vue relationnelle principale
 

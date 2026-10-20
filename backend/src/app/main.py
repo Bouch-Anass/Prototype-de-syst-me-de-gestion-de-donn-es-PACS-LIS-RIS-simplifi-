@@ -68,7 +68,7 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
     @app.get("/health/ready")
     def ready(request: Request, db: Session = Depends(get_db)):
         revision = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
-        if revision != "0001_t03":
+        if revision != "0002_domains":
             raise ApiError(503, "SERVICE_UNAVAILABLE", "Service métier indisponible.")
         db.execute(text("SELECT 1")).scalar_one()
         with db.begin_nested() as probe:
