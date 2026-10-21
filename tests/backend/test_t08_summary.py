@@ -1,0 +1,169 @@
+"""T08 authenticated composition over the real domain projections."""
+
+import os
+import sys
+import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event, select, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "backend/src"))
+os.environ["APP_ENV"] = "test"
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+
+from app.cli import seed_demo, seed_radiology_demo  # noqa: E402
+from app.core.config import Settings  # noqa: E402
+from app.db.models import (  # noqa: E402
+    AppUser, AuditEvent, Base, RadiologyExam, RadiologyOrder, RadiologyReport,
+    Role, UserEncounterAccess, UserRole,
+)
+from app.integrations.orthanc.client import OrthancStudy, OrthancUnavailable  # noqa: E402
+from app.main import create_app  # noqa: E402
+from app.modules.auth.service import hash_password  # noqa: E402
+from app.modules.imaging.service import match_study  # noqa: E402
+
+ORIGIN = "http://127.0.0.1:8000"
+ENCOUNTER_ID = "20000000-0000-4000-8000-000000000001"
+EXAM_ID = "60000000-0000-4000-8000-000000000001"
+HL7_HEADERS = {"Authorization": "Bearer test-service-secret",
+               "Content-Type": "application/hl7-v2; charset=utf-8"}
+
+
+class FakeOrthanc:
+    def __init__(self):
+        self.down = False
+        self.study = OrthancStudy(
+            orthanc_id="aaaaaaaa-bbbbbbbb-cccccccc-dddddddd-eeeeeeee",
+            study_instance_uid="2.25.10101", patient_id="DEMO-P001",
+            issuer_of_patient_id="DEMO", accession_number="DEMO-ACC001",
+            modality="CT", series_count=1, instance_count=1)
+
+    def find_study(self, uid, timeout_ms):
+        return self.study
+
+    def get_study(self, orthanc_id, timeout_ms):
+        if self.down:
+            raise OrthancUnavailable("ORTHANC_UNAVAILABLE")
+        return self.study
+
+    def get_preview(self, orthanc_id, timeout_ms):
+        if self.down:
+            raise OrthancUnavailable("ORTHANC_UNAVAILABLE")
+        return b"\x89PNG\r\n\x1a\nsynthetic-preview"
+
+
+class SummaryTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False},
+                                    poolclass=StaticPool)
+
+        @event.listens_for(self.engine, "connect")
+        def enable_foreign_keys(connection, record):
+            connection.execute("PRAGMA foreign_keys=ON")
+
+        Base.metadata.create_all(self.engine)
+        self.factory = sessionmaker(bind=self.engine, expire_on_commit=False)
+        seed_demo(self.factory)
+        seed_radiology_demo(self.factory)
+        with self.factory.begin() as db:
+            db.add_all([Role(name=name) for name in ("physician", "radiologist", "lab_technician", "admin")])
+            db.flush()
+            for name, role, grant in (("doctor", "physician", True), ("radiologist", "radiologist", True),
+                                      ("technician", "lab_technician", True),
+                                      ("outsider", "physician", False)):
+                user_id = str(uuid4())
+                db.add(AppUser(id=user_id, username=name, password_hash=hash_password("correct-password"),
+                               is_active=True, failed_attempts=0))
+                db.flush()
+                db.add(UserRole(user_id=user_id, role_name=role))
+                if grant:
+                    db.add(UserEncounterAccess(user_id=user_id, encounter_id=ENCOUNTER_ID))
+            exam = db.get(RadiologyExam, EXAM_ID)
+            exam.status = "performed"
+            exam.performed_at = datetime(2026, 1, 15, 9, 40, tzinfo=timezone.utc)
+            db.get(RadiologyOrder, exam.order_id).status = "completed"
+            db.add(RadiologyReport(id="70000000-0000-4000-8000-000000000001", exam_id=EXAM_ID,
+                                   content="Compte rendu fictif.", status="final",
+                                   validated_at=datetime(2026, 1, 15, 9, 55, tzinfo=timezone.utc)))
+        self.orthanc = FakeOrthanc()
+        settings = Settings("sqlite+pysqlite:///:memory:", ORIGIN, False, "test-service-secret")
+        self.client = TestClient(create_app(settings, self.factory, self.orthanc))
+
+    def tearDown(self):
+        self.client.close()
+        self.engine.dispose()
+
+    def login(self, name="doctor"):
+        return self.client.post("/api/v1/auth/login", json={"username": name, "password": "correct-password"},
+                                headers={"Origin": ORIGIN})
+
+    def send(self, filename):
+        return self.client.post("/internal/hl7/messages", headers=HL7_HEADERS,
+                                content=(ROOT / "data/hl7" / filename).read_bytes())
+
+    def summary(self):
+        return self.client.get(f"/api/v1/encounters/{ENCOUNTER_ID}/summary")
+
+    def csrf_headers(self):
+        return {"Origin": ORIGIN, "X-CSRF-Token": self.client.cookies.get("csrf_token")}
+
+    def test_nominal_summary_from_hl7_ris_and_orthanc(self):
+        self.assertEqual(self.send("order.oml.hl7").status_code, 200)
+        self.assertEqual(self.send("result.nominal.oru.hl7").status_code, 200)
+        match_study(self.factory, self.orthanc, patient_id="10000000-0000-4000-8000-000000000001",
+                    accession_number="DEMO-ACC001", study_instance_uid="2.25.10101", modality="CT")
+        self.login()
+        response = self.summary()
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["patient"]["external_id"], "DEMO-P001")
+        self.assertEqual(body["laboratory"]["status"], "available")
+        self.assertEqual(body["radiology"]["exams"][0]["report"]["status"], "final")
+        self.assertEqual(body["imaging"]["availability_status"], "available")
+        self.assertEqual(body["warnings"], [])
+
+    def test_missing_result_and_pacs_outage_are_visible_without_losing_business_data(self):
+        self.send("order.oml.hl7")
+        self.send("result.missing-crp.oru.hl7")
+        match_study(self.factory, self.orthanc, patient_id="10000000-0000-4000-8000-000000000001",
+                    accession_number="DEMO-ACC001", study_instance_uid="2.25.10101", modality="CT")
+        self.orthanc.down = True
+        self.login()
+        response = self.summary()
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["laboratory"]["status"], "partial")
+        values = {item["code"]: item for item in body["laboratory"]["reports"][0]["observations"]}
+        self.assertIsNone(values["CRP"]["value_numeric"])
+        self.assertEqual(values["GLU"]["value_numeric"], 4.8)
+        self.assertEqual(body["imaging"]["availability_status"], "unavailable")
+        self.assertEqual({warning["code"] for warning in body["warnings"]},
+                         {"LAB_RESULT_MISSING", "IMAGING_UNAVAILABLE"})
+
+    def test_access_and_audit_failure(self):
+        self.assertEqual(self.summary().status_code, 401)
+        self.login("technician")
+        self.assertEqual(self.summary().status_code, 403)
+        self.login("outsider")
+        self.assertEqual(self.summary().status_code, 403)
+        with self.factory() as db:
+            self.assertEqual(len(list(db.scalars(select(AuditEvent).where(
+                AuditEvent.action == "encounter.summary", AuditEvent.outcome == "denied")))), 2)
+        self.login()
+        with self.engine.begin() as conn:
+            conn.execute(text("CREATE TRIGGER fail_audit BEFORE INSERT ON audit_event "
+                              "BEGIN SELECT RAISE(FAIL, 'audit down'); END"))
+        result = self.summary()
+        self.assertEqual(result.status_code, 503)
+        self.assertNotIn("DEMO-P001", result.text)
+
+
+
+if __name__ == "__main__":
+    unittest.main()

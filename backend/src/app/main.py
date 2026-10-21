@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import hmac
+import os
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, Query, Request, Response
@@ -22,6 +23,9 @@ from app.modules.identity.service import accessible_encounters, resolve_patient
 from app.integrations.hl7.service import (
     MAX_MESSAGE_BYTES, ProfileError, build_ack, message_header, process_message, record_rejection,
 )
+from app.integrations.orthanc.client import OrthancClient, OrthancUnavailable
+from app.modules.summary.service import build_summary
+
 
 
 CLINICAL_IDENTITY_ROLES = {"physician", "radiologist", "lab_technician"}
@@ -44,9 +48,18 @@ def _error(request: Request, status: int, code: str, message: str) -> JSONRespon
     })
 
 
-def create_app(settings: Settings | None = None, session_factory: sessionmaker[Session] | None = None) -> FastAPI:
+class _OfflineOrthanc:
+    def get_study(self, orthanc_id: str, timeout_ms: int):
+        raise OrthancUnavailable("ORTHANC_UNAVAILABLE")
+
+
+def create_app(settings: Settings | None = None, session_factory: sessionmaker[Session] | None = None,
+               orthanc_client: OrthancClient | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     session_factory = session_factory or make_session_factory(settings.database_url)
+    if orthanc_client is None:
+        connection = (os.getenv("ORTHANC_BASE_URL"), os.getenv("ORTHANC_USERNAME"), os.getenv("ORTHANC_PASSWORD"))
+        orthanc_client = OrthancClient(*connection) if all(connection) else _OfflineOrthanc()
     get_db = session_dependency(session_factory)
     app = FastAPI(title="Dossier synthétique PACS/LIS/RIS", debug=False)
 
@@ -185,6 +198,14 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
                                 "started_at": _timestamp(item.started_at),
                                 "ended_at": _timestamp(item.ended_at) if item.ended_at else None}
                                for item in encounters]}
+
+    @app.get("/api/v1/encounters/{encounter_id}/summary")
+    def encounter_summary(encounter_id: UUID, request: Request, db: Session = Depends(get_db)):
+        actor = current_actor(db, request)
+        # Close the session transaction before the composition service starts its own transactions.
+        db.commit()
+        return build_summary(session_factory, orthanc_client, actor_user_id=actor.user_id,
+                             encounter_id=str(encounter_id), correlation_id=request.state.correlation_id)
 
     return app
 
