@@ -11,11 +11,12 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from app.core.config import Settings
-from app.db.models import AppUser, Encounter, Patient, RadiologyExam, RadiologyOrder, UserEncounterAccess, UserRole
+from app.db.models import AppUser, Encounter, Patient, RadiologyExam, RadiologyOrder, RadiologyReport, UserEncounterAccess, UserRole
 from app.db.session import make_session_factory
 from app.integrations.orthanc.client import OrthancClient
 from app.modules.auth.service import hash_password
 from app.modules.imaging.service import get_availability, match_study
+from app.modules.radiology.service import mark_performed, save_report_draft, validate_report
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -103,6 +104,34 @@ def seed_radiology_demo(factory) -> None:
     print("Synthetic radiology order and exam ready.")
 
 
+def complete_demo_radiology(factory, username: str) -> None:
+    """Finish the seeded RIS exam through T06 using an authorized radiologist."""
+    manifest = json.loads((ROOT / "data/fixtures/scenario.json").read_text(encoding="utf-8"))
+    sample = json.loads((ROOT / "contracts/examples/summary.nominal.json").read_text(encoding="utf-8"))
+    exam_id = manifest["ids"]["radiology_exam"]
+    fixture = sample["radiology"]["exams"][0]
+    with factory() as db:
+        actor = db.scalar(select(AppUser).where(AppUser.username == username))
+        exam = db.get(RadiologyExam, exam_id)
+        if actor is None or exam is None:
+            raise ValueError("Radiologist or synthetic exam not found")
+        actor_id = actor.id
+        exam_status = exam.status
+    if exam_status == "scheduled":
+        mark_performed(factory, actor_user_id=actor_id, exam_id=exam_id,
+                       performed_at=datetime.fromisoformat(fixture["performed_at"].replace("Z", "+00:00")))
+    with factory() as db:
+        report = db.scalar(select(RadiologyReport).where(RadiologyReport.exam_id == exam_id))
+        report_status = report.status if report else None
+    if report_status is None:
+        save_report_draft(factory, actor_user_id=actor_id, exam_id=exam_id,
+                          content=fixture["report"]["content"])
+    if report_status != "final":
+        validate_report(factory, actor_user_id=actor_id, exam_id=exam_id,
+                        validated_at=datetime.fromisoformat(fixture["report"]["validated_at"].replace("Z", "+00:00")))
+    print("Synthetic RIS exam and report ready.")
+
+
 def _orthanc_client() -> tuple[OrthancClient, int]:
     base_url = os.getenv("ORTHANC_BASE_URL", "")
     username = os.getenv("ORTHANC_USERNAME", "")
@@ -124,6 +153,8 @@ def main() -> None:
     grant_cmd.add_argument("--username", required=True)
     grant_cmd.add_argument("--encounter-id", required=True)
     commands.add_parser("seed-radiology-demo")
+    ris_cmd = commands.add_parser("complete-radiology-demo")
+    ris_cmd.add_argument("--username", required=True)
     commands.add_parser("match-demo-study")
     commands.add_parser("refresh-demo-study")
     args = parser.parse_args()
@@ -136,6 +167,8 @@ def main() -> None:
         grant_encounter(factory, args.username, args.encounter_id)
     elif args.command == "seed-radiology-demo":
         seed_radiology_demo(factory)
+    elif args.command == "complete-radiology-demo":
+        complete_demo_radiology(factory, args.username)
     else:
         manifest = json.loads((ROOT / "data/fixtures/scenario.json").read_text(encoding="utf-8"))
         client, timeout_ms = _orthanc_client()

@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "backend/src"))
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 
-from app.cli import seed_demo  # noqa: E402
+from app.cli import complete_demo_radiology, seed_demo, seed_radiology_demo  # noqa: E402
 from app.db.models import (  # noqa: E402
     AppUser, AuditEvent, Base, RadiologyExam, RadiologyOrder, RadiologyReport, Role,
     UserEncounterAccess, UserRole,
@@ -156,6 +156,15 @@ class RadiologyTests(unittest.TestCase):
         with self.factory() as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(RadiologyOrder)), 0)
             self.assertEqual(db.scalar(select(func.count()).select_from(RadiologyExam)), 0)
+
+    def test_demo_completion_uses_workflow_and_can_be_replayed(self):
+        seed_radiology_demo(self.factory)
+        complete_demo_radiology(self.factory, "radiologist")
+        complete_demo_radiology(self.factory, "radiologist")
+        with self.factory() as db:
+            report = db.scalar(select(RadiologyReport))
+            self.assertEqual(report.status, "final")
+            self.assertEqual(db.scalar(select(func.count()).select_from(RadiologyReport)), 1)
 
 
 if __name__ == "__main__":
