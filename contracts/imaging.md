@@ -42,11 +42,11 @@ Chaque état est accompagné d'un instant de contrôle ou de dernière synchroni
 
 ## Accès au viewer
 
-L'endpoint `viewer-link` doit retourner un accès applicatif contrôlé, sans credentials Orthanc ni accès à son administration. La stratégie de viewer est à choisir : proxy applicatif ou composant compatible avec un mécanisme de session validé.
+Pour le scénario T10, `viewer-link` retourne le chemin local d'un aperçu PNG servi par le backend. La route `/preview` vérifie de nouveau session, rôle, accès à la rencontre et disponibilité ; elle ne transmet aucun credential Orthanc. Le PNG est borné à 8 Mio et marqué `Cache-Control: no-store`. Cet aperçu non diagnostique couvre seulement une instance de l'étude ; ce n'est pas un viewer DICOM complet. L'[API Orthanc officielle](https://orthanc.uclouvain.be/book/users/rest.html) décrit le rendu PNG de `/instances/{id}/preview`.
 
 Une URL non devinable ne suffit pas comme contrôle d'accès. La requête d'image doit vérifier l'autorisation ou un jeton temporaire strictement limité, selon la stratégie retenue.
 
-DICOMweb et ses plugins éventuels ne sont nécessaires que si la solution choisie les exige. Les versions des plugins doivent être compatibles avec l'image Orthanc retenue.
+DICOMweb et ses plugins ne sont pas nécessaires pour cette première démonstration. Le rendu avec l'image Orthanc réelle reste à vérifier.
 
 ## Tests obligatoires
 

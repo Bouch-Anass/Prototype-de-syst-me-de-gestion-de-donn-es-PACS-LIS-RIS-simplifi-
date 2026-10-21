@@ -15,17 +15,20 @@
 
 D12 fixe pour T03 une session côté serveur avec cookie HttpOnly et SameSite=Lax, expiration après 30 minutes d'inactivité et 8 heures au maximum ; `Secure` est activé sous `APP_ENV=production` avec origine HTTPS. Le login vérifie l'origine ; les mutations authentifiées utilisent l'origine et `X-CSRF-Token`. Ces mécanismes sont implémentés dans la première tranche T03 pour login, logout, recherche et rencontres. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le premier jalon retourne 403 pour une ressource existante hors contexte et 404 pour une ressource inexistante, sans contenu clinique dans les deux cas.
 
-La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. La route interne HL7 est implémentée pour le profil local DEMO-001 ; les routes de synthèse et d'imagerie restent à développer.
+La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. La route interne HL7 est implémentée pour le profil local DEMO-001. La synthèse T08 et les routes d'imagerie T10 exigent une session médecin/radiologue avec accès explicite à la rencontre.
 
-## Propositions de routes d'écriture, à valider avant implémentation
+## Routes d'écriture RIS T06
 
 | Route proposée | Usage | Lot |
 |---|---|---|
 | `POST /api/v1/radiology-orders` | Créer une demande liée à une rencontre | C avec A |
 | `PATCH /api/v1/radiology-exams/{id}` | Faire évoluer l'état d'un examen | C |
 | `PUT /api/v1/radiology-exams/{id}/report` | Enregistrer le compte rendu courant | C |
+| `POST /api/v1/radiology-exams/{id}/report/validate` | Valider le brouillon courant | C |
 
-Ces routes ne sont pas présentées comme déjà spécifiées dans les PDF. Le service interne T06 teste maintenant les transitions et la validation par radiologue, mais ces routes ne sont pas exposées. Leur exposition devra intégrer session, CSRF, réponse d'erreur et audit des refus. Les données initiales du scénario T07 peuvent encore être créées par un seed.
+Ces routes ne sont pas présentées comme déjà spécifiées dans les PDF. Elles sont exposées avec session, contrôle d'origine, CSRF, réponse d'erreur et audit des refus métier. `PATCH` accepte `{"status":"performed","performed_at":"...Z"}` ; `PUT /report` accepte `{"content":"..."}` et conserve un brouillon ; `/validate` accepte `{"validated_at":"...Z"}`. Le final est immuable. Les données initiales du scénario T07 peuvent encore être créées par un seed.
+
+L'accès contrôlé à l'imagerie ajoute `GET /api/v1/imaging-studies/{id}/preview`, qui renvoie un PNG borné et non mis en cache après vérification des droits et de la disponibilité. `viewer-link` renvoie uniquement son chemin relatif local, sans credential Orthanc. Il s'agit d'un aperçu de démonstration non diagnostique.
 
 ## Forme de la synthèse
 
