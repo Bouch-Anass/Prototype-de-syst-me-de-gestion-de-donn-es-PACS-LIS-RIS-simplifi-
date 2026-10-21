@@ -13,6 +13,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 ORTHANC_ID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{8}){4}\Z")
+MAX_PREVIEW_BYTES = 8 * 1024 * 1024
 
 
 class OrthancError(Exception):
@@ -116,6 +117,38 @@ class OrthancClient:
 
     def get_study(self, orthanc_id: str, timeout_ms: int) -> OrthancStudy:
         return self._get_study(orthanc_id, monotonic() + timeout_ms / 1000)
+
+    def get_preview(self, orthanc_id: str, timeout_ms: int) -> bytes:
+        """Read one bounded PNG preview from a validated study reference."""
+        if not ORTHANC_ID.fullmatch(orthanc_id):
+            raise OrthancProtocolError("ORTHANC_BAD_ID")
+        deadline = monotonic() + timeout_ms / 1000
+        study = self._json("GET", f"/studies/{orthanc_id}", _remaining_ms(deadline))
+        series_ids = study.get("Series") if isinstance(study, dict) and study.get("ID") == orthanc_id else None
+        if (not isinstance(series_ids, list) or not series_ids or not isinstance(series_ids[0], str)
+                or not ORTHANC_ID.fullmatch(series_ids[0])):
+            raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+        series = self._json("GET", f"/series/{series_ids[0]}", _remaining_ms(deadline))
+        instances = series.get("Instances") if isinstance(series, dict) and series.get("ID") == series_ids[0] else None
+        if (not isinstance(instances, list) or not instances or not isinstance(instances[0], str)
+                or not ORTHANC_ID.fullmatch(instances[0])):
+            raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+        request = Request(self.base_url + f"/instances/{instances[0]}/preview", method="GET",
+                          headers={"Authorization": self._authorization, "Accept": "image/png"})
+        try:
+            with self._open(request, timeout=_remaining_ms(deadline) / 1000) as response:
+                image = response.read(MAX_PREVIEW_BYTES + 1)
+        except HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise OrthancUnavailable("ORTHANC_AUTH_FAILED") from exc
+            if exc.code == 404:
+                raise OrthancNotFound("ORTHANC_STUDY_NOT_FOUND") from exc
+            raise OrthancUnavailable("ORTHANC_UNAVAILABLE") from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            raise OrthancUnavailable("ORTHANC_UNAVAILABLE") from exc
+        if len(image) > MAX_PREVIEW_BYTES or not image.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise OrthancProtocolError("ORTHANC_BAD_PREVIEW")
+        return image
 
     def _get_study(self, orthanc_id: str, deadline: float) -> OrthancStudy:
         if not ORTHANC_ID.fullmatch(orthanc_id):

@@ -181,6 +181,26 @@ class ImagingTests(unittest.TestCase):
 
 
 class OrthancClientTests(unittest.TestCase):
+    def test_preview_is_bounded_png_from_a_validated_study(self):
+        calls = []
+
+        def opener(request, timeout):
+            calls.append(request)
+            path = request.full_url.removeprefix("http://127.0.0.1:8042")
+            if path == f"/studies/{ORTHANC_ID}":
+                return io.BytesIO(json.dumps({"ID": ORTHANC_ID, "Series": [SERIES_ID]}).encode())
+            if path == f"/series/{SERIES_ID}":
+                return io.BytesIO(json.dumps({"ID": SERIES_ID, "Instances": [INSTANCE_ID]}).encode())
+            if path == f"/instances/{INSTANCE_ID}/preview":
+                return io.BytesIO(b"\x89PNG\r\n\x1a\nsynthetic-preview")
+            self.fail(f"Unexpected path: {path}")
+
+        client = OrthancClient("http://127.0.0.1:8042", "demo", "private-password", opener=opener)
+        self.assertTrue(client.get_preview(ORTHANC_ID, 500).startswith(b"\x89PNG"))
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(all(request.get_header("Authorization").startswith("Basic ") for request in calls))
+        self.assertEqual(calls[-1].get_header("Accept"), "image/png")
+
     def test_query_metadata_counts_and_private_authentication(self):
         calls = []
 
