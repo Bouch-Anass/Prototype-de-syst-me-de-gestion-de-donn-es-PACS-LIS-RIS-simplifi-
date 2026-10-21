@@ -128,6 +128,12 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(body["imaging"]["availability_status"], "available")
         self.assertEqual(body["warnings"], [])
 
+    def test_backend_serves_the_local_frontend_and_mock_fixtures(self):
+        self.assertEqual(self.client.get("/frontend/").status_code, 200)
+        self.assertIn("API locale", self.client.get("/frontend/").text)
+        self.assertEqual(self.client.get("/frontend/app.js").status_code, 200)
+        self.assertEqual(self.client.get("/contracts/examples/summary.nominal.json").status_code, 200)
+
     def test_missing_result_and_pacs_outage_are_visible_without_losing_business_data(self):
         self.send("order.oml.hl7")
         self.send("result.missing-crp.oru.hl7")

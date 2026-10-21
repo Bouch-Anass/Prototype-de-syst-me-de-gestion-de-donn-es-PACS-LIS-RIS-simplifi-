@@ -359,6 +359,9 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         return Response(content=image, media_type="image/png",
                         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
+    root = Path(__file__).resolve().parents[3]
+    app.mount("/frontend", StaticFiles(directory=root / "frontend", html=True), name="frontend")
+    app.mount("/contracts/examples", StaticFiles(directory=root / "contracts/examples"), name="examples")
     return app
 
 
