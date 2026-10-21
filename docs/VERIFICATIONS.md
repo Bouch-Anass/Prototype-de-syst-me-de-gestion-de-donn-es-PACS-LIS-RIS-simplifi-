@@ -41,3 +41,11 @@ Ces essais ne couvrent ni la réception HL7 réelle, ni des ingestions concurren
 `python -m unittest discover -s tests/backend -v` a exécuté 21 tests avec succès, dont six nouveaux tests HTTP du profil local : demande et résultat, CRP absente, rejeu exact, correction, conflit d'identifiant, valeur mal formée, patient inconnu, authentification, limite de taille et échec de l'audit. Dans ce dernier cas, aucun ACK positif ni écriture métier ne subsiste. Les 17 tests de contrat restent réussis.
 
 Le sender CLI n'a pas été essayé contre un serveur PostgreSQL réel. Les tests utilisent SQLite en mémoire et ne prouvent pas le comportement sous deux réceptions concurrentes, la configuration réseau du proxy, ni la persistance Docker.
+
+## Première tranche Orthanc T07 — 21 octobre 2026
+
+`python -m unittest discover -s tests/backend -v` a exécuté 33 tests avec succès, dont 12 nouveaux tests T07 sur SQLite et faux transport Orthanc : rapprochement, rejeu exact, patient/accession/modalité contradictoires, UID déjà lié, étude partielle puis complète, panne PACS avec conservation de la référence et du dernier bon instant, refus REST et échec d'audit. Les 17 tests de contrat, `python scripts/check_repo.py` et `git diff --check` ont aussi réussi.
+
+Le générateur a créé localement un fichier DICOM synthétique avec pydicom 3.0.2. Un test séparé avec pynetdicom 3.0.4 a vérifié les tags et un C-STORE réussi vers un serveur DICOM de boucle locale (`python -m unittest discover -s tests/modality -v`, 1 test). Ces dépendances ont été installées dans un environnement isolé ; le workflow CI les installe explicitement.
+
+Docker n'est pas disponible sur ce poste. Aucun C-STORE vers l'image Orthanc du Compose, appel REST réel, essai PostgreSQL concurrent ou parcours viewer n'a été validé. T06 fournit encore le workflow RIS ; T07 utilise un seed radiologique synthétique limité à la démonstration.

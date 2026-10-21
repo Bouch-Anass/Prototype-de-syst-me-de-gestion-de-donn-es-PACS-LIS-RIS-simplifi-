@@ -8,7 +8,7 @@
 - Les modèles d'issues et de pull requests.
 - Les contrôles locaux des documents et des exemples.
 
-T01 fournit maintenant le [Compose PostgreSQL/Orthanc](../infra/README.md) et T02 un [aperçu frontend statique](../frontend/README.md). Aucun serveur FastAPI ni parcours clinique complet n'est encore exécutable. Les sections GitHub ci-dessous sont des consignes historiques du pack initial, pas des actions effectuées par T01/T02.
+T01 fournit le [Compose PostgreSQL/Orthanc](../infra/README.md), T02 un [aperçu frontend statique](../frontend/README.md), T03–T05 le backend d'identité, de laboratoire et de réception HL7, et T07 un service interne de rapprochement d'imagerie. Le [guide backend](../backend/README.md) donne les commandes locales. Le parcours clinique complet n'est pas encore exécutable : le workflow RIS T06 et la synthèse T08 restent à réaliser. Les sections GitHub ci-dessous sont des consignes historiques du pack initial, pas des actions déjà publiées.
 
 ## Vérification locale
 
@@ -19,7 +19,7 @@ python3 scripts/check_repo.py
 python3 -m unittest discover -s tests/contract -v
 ```
 
-Python 3.12 ou supérieur suffit. Aucun accès réseau ni paquet Python tiers n'est requis par ces commandes.
+Python 3.12 ou supérieur suffit. Aucun accès réseau ni paquet Python tiers n'est requis par ces deux commandes. Les tests backend et DICOM installent les dépendances indiquées dans leurs fichiers `requirements` ; voir le [guide backend](../backend/README.md).
 
 Le workflow GitHub Actions exécute les mêmes contrôles. Il ne déploie rien. Il n'a pas été exécuté sur GitHub pendant la préparation du pack.
 
@@ -62,9 +62,9 @@ Un tableau GitHub peut utiliser quatre états : À préparer, Prêt, En cours, �
 
 ## Configuration future
 
-`.env.example` décrit les variables utilisées par la première tranche T03 ainsi que celles prévues pour les intégrations futures. Les secrets Docker de T01 sont créés par `scripts/init_local_env.py` dans `infra/.secrets/`, hors Git. Le [guide backend](../backend/README.md) décrit la migration et la recherche du patient synthétique.
+`.env.example` décrit les variables utilisées par le backend et le rapprochement Orthanc T07. Les secrets Docker de T01 sont créés par `scripts/init_local_env.py` dans `infra/.secrets/`, hors Git. Le [guide backend](../backend/README.md) décrit la migration, la recherche du patient et l'essai d'imagerie synthétique.
 
-Les variables ne sont consommées par aucun programme actuellement. Les paramètres vides ne sont pas une configuration fonctionnelle.
+Ce fichier reste un exemple : ses paramètres vides ne sont pas une configuration fonctionnelle.
 
 ## Documents de conception
 

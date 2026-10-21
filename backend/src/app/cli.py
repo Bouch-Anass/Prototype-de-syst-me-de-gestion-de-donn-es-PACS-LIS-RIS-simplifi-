@@ -3,6 +3,7 @@
 import argparse
 import getpass
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -10,9 +11,11 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from app.core.config import Settings
-from app.db.models import AppUser, Encounter, Patient, UserEncounterAccess, UserRole
+from app.db.models import AppUser, Encounter, Patient, RadiologyExam, RadiologyOrder, UserEncounterAccess, UserRole
 from app.db.session import make_session_factory
+from app.integrations.orthanc.client import OrthancClient
 from app.modules.auth.service import hash_password
+from app.modules.imaging.service import get_availability, match_study
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -72,6 +75,44 @@ def grant_encounter(factory, username: str, encounter_id: str) -> None:
     print("Encounter access granted.")
 
 
+def seed_radiology_demo(factory) -> None:
+    manifest = json.loads((ROOT / "data/fixtures/scenario.json").read_text(encoding="utf-8"))
+    if manifest.get("synthetic") is not True:
+        raise ValueError("Only synthetic fixtures may be seeded")
+    with factory.begin() as db:
+        if db.get(Encounter, manifest["ids"]["encounter"]) is None:
+            raise ValueError("Seed the synthetic patient and encounter first")
+        order_id = manifest["ids"]["radiology_order"]
+        order = db.get(RadiologyOrder, order_id)
+        if order is None:
+            db.add(RadiologyOrder(id=order_id, encounter_id=manifest["ids"]["encounter"],
+                                  accession_number=manifest["imaging"]["accession_number"],
+                                  requested_procedure="CT synthétique DEMO-001",
+                                  priority="routine", status="ordered"))
+            db.flush()
+        elif (order.encounter_id != manifest["ids"]["encounter"]
+              or order.accession_number != manifest["imaging"]["accession_number"]):
+            raise ValueError("Existing radiology order conflicts with synthetic manifest")
+        exam_id = manifest["ids"]["radiology_exam"]
+        exam = db.get(RadiologyExam, exam_id)
+        if exam is None:
+            db.add(RadiologyExam(id=exam_id, order_id=order_id,
+                                 modality=manifest["imaging"]["modality"], status="scheduled"))
+        elif exam.order_id != order_id or exam.modality != manifest["imaging"]["modality"]:
+            raise ValueError("Existing radiology exam conflicts with synthetic manifest")
+    print("Synthetic radiology order and exam ready.")
+
+
+def _orthanc_client() -> tuple[OrthancClient, int]:
+    base_url = os.getenv("ORTHANC_BASE_URL", "")
+    username = os.getenv("ORTHANC_USERNAME", "")
+    password = os.getenv("ORTHANC_PASSWORD", "")
+    if not all((base_url, username, password)):
+        raise ValueError("ORTHANC_BASE_URL, ORTHANC_USERNAME and ORTHANC_PASSWORD are required")
+    timeout_ms = int(os.getenv("ORTHANC_TIMEOUT_MS", "500"))
+    return OrthancClient(base_url, username, password), timeout_ms
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Local synthetic backend setup")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -82,14 +123,31 @@ def main() -> None:
     grant_cmd = commands.add_parser("grant-encounter")
     grant_cmd.add_argument("--username", required=True)
     grant_cmd.add_argument("--encounter-id", required=True)
+    commands.add_parser("seed-radiology-demo")
+    commands.add_parser("match-demo-study")
+    commands.add_parser("refresh-demo-study")
     args = parser.parse_args()
     factory = make_session_factory(Settings.from_env().database_url)
     if args.command == "seed-demo":
         seed_demo(factory)
     elif args.command == "create-user":
         create_user(factory, args.username, args.role)
-    else:
+    elif args.command == "grant-encounter":
         grant_encounter(factory, args.username, args.encounter_id)
+    elif args.command == "seed-radiology-demo":
+        seed_radiology_demo(factory)
+    else:
+        manifest = json.loads((ROOT / "data/fixtures/scenario.json").read_text(encoding="utf-8"))
+        client, timeout_ms = _orthanc_client()
+        if args.command == "match-demo-study":
+            result = match_study(factory, client, patient_id=manifest["ids"]["patient"],
+                                 accession_number=manifest["imaging"]["accession_number"],
+                                 study_instance_uid=manifest["imaging"]["study_instance_uid"],
+                                 modality=manifest["imaging"]["modality"], timeout_ms=timeout_ms)
+        else:
+            result = get_availability(factory, client, exam_id=manifest["ids"]["radiology_exam"],
+                                      timeout_ms=timeout_ms)
+        print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":
