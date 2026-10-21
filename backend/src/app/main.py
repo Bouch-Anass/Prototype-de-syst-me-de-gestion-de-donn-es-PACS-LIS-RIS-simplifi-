@@ -1,6 +1,7 @@
-"""Premières routes T03 : identité, contexte, session et audit."""
+"""Routes T03 et transport HL7 local T05."""
 
 from datetime import datetime, timezone
+import hmac
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, Query, Request, Response
@@ -18,6 +19,9 @@ from app.db.session import make_session_factory, session_dependency
 from app.modules.audit.service import record_event
 from app.modules.auth.service import authenticate, current_actor, require_csrf
 from app.modules.identity.service import accessible_encounters, resolve_patient
+from app.integrations.hl7.service import (
+    MAX_MESSAGE_BYTES, ProfileError, build_ack, message_header, process_message, record_rejection,
+)
 
 
 CLINICAL_IDENTITY_ROLES = {"physician", "radiologist", "lab_technician"}
@@ -77,6 +81,45 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
             db.flush()
             probe.rollback()
         return {"status": "ready"}
+
+    @app.post("/internal/hl7/messages")
+    async def receive_hl7(request: Request):
+        secret = settings.hl7_service_secret
+        if not secret:
+            raise ApiError(503, "SERVICE_UNAVAILABLE", "Service HL7 indisponible.")
+        authorization = request.headers.get("authorization", "")
+        if not hmac.compare_digest(authorization, f"Bearer {secret}"):
+            raise ApiError(401, "UNAUTHENTICATED", "Authentification requise.")
+        if request.headers.get("content-type", "").lower() != "application/hl7-v2; charset=utf-8":
+            raise ApiError(415, "UNSUPPORTED_MEDIA_TYPE", "Type de message non accepté.")
+        try:
+            if int(request.headers.get("content-length", "0")) > MAX_MESSAGE_BYTES:
+                raise ApiError(413, "PAYLOAD_TOO_LARGE", "Message trop volumineux.")
+        except ValueError as exc:
+            raise ApiError(422, "INVALID_INPUT", "Données d'entrée invalides.") from exc
+        raw = bytearray()
+        async for chunk in request.stream():
+            raw.extend(chunk)
+            if len(raw) > MAX_MESSAGE_BYTES:
+                raise ApiError(413, "PAYLOAD_TOO_LARGE", "Message trop volumineux.")
+        payload = bytes(raw)
+        _, control_id, kind = message_header(payload)
+        try:
+            process_message(session_factory, payload, request.state.correlation_id)
+        except ProfileError as exc:
+            try:
+                record_rejection(session_factory, payload, exc.code, request.state.correlation_id)
+            except SQLAlchemyError:
+                return Response(content=build_ack(control_id, kind, "AE", "SERVICE_UNAVAILABLE"),
+                                status_code=503, media_type="application/hl7-v2")
+            status = 409 if exc.code in {"MESSAGE_CONFLICT", "ORDER_CONFLICT"} else 422
+            return Response(content=build_ack(control_id, kind, "AR", exc.code),
+                            status_code=status, media_type="application/hl7-v2")
+        except SQLAlchemyError:
+            return Response(content=build_ack(control_id, kind, "AE", "SERVICE_UNAVAILABLE"),
+                            status_code=503, media_type="application/hl7-v2")
+        return Response(content=build_ack(control_id, kind, "AA"),
+                        status_code=200, media_type="application/hl7-v2")
 
     @app.post("/api/v1/auth/login")
     def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)):

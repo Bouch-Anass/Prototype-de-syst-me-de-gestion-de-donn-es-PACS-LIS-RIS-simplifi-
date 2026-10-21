@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Encounter, InboundMessage, LabObservation, LabOrder, LabReport
+from app.modules.audit.service import record_event
 
 
 MANIFEST = Path(__file__).resolve().parents[5] / "data/fixtures/scenario.json"
@@ -141,7 +142,8 @@ def _claim(db: Session, source: str, control_id: str, content_hash: str, message
     return existing, True
 
 
-def ingest_order(factory: sessionmaker[Session], command: OrderCommand) -> OrderReceipt:
+def ingest_order(factory: sessionmaker[Session], command: OrderCommand,
+                 correlation_id: str | None = None) -> OrderReceipt:
     """Persist one OML order; a byte-identical replay returns its existing ID."""
     _validate_common(command)
     _catalog(command.panel_code)
@@ -156,6 +158,9 @@ def ingest_order(factory: sessionmaker[Session], command: OrderCommand) -> Order
         if replayed:
             if order is None or order.encounter_id != command.encounter_id or order.filler_number != command.filler_number:
                 raise LaboratoryError("MESSAGE_CONFLICT")
+            if correlation_id:
+                record_event(db, actor_user_id=None, action="lab.order.ingest", resource_type="lab_order",
+                             resource_id=order.id, outcome="replayed", correlation_id=correlation_id)
             return OrderReceipt(order.id, True)
         if order is not None:
             raise LaboratoryError("ORDER_CONFLICT")
@@ -164,6 +169,9 @@ def ingest_order(factory: sessionmaker[Session], command: OrderCommand) -> Order
                          panel_code=command.panel_code, ordered_at=command.ordered_at.astimezone(timezone.utc),
                          status="ordered")
         db.add(order)
+        if correlation_id:
+            record_event(db, actor_user_id=None, action="lab.order.ingest", resource_type="lab_order",
+                         resource_id=order.id, outcome="allowed", correlation_id=correlation_id)
         return OrderReceipt(order.id, False)
 
 
@@ -187,7 +195,8 @@ def _validated_observations(command: ResultCommand, catalog: tuple[dict, ...]) -
     return [(entry, supplied.get((entry["coding_system"], entry["code"]))) for entry in catalog]
 
 
-def ingest_result(factory: sessionmaker[Session], command: ResultCommand) -> ResultReceipt:
+def ingest_result(factory: sessionmaker[Session], command: ResultCommand,
+                  correlation_id: str | None = None) -> ResultReceipt:
     """Persist one complete report version, deriving missing expected observations."""
     _validate_common(command)
     catalog = _catalog(command.panel_code)
@@ -200,6 +209,9 @@ def ingest_result(factory: sessionmaker[Session], command: ResultCommand) -> Res
             report = db.scalar(select(LabReport).where(LabReport.inbound_message_id == marker.id))
             if report is None:
                 raise LaboratoryError("MESSAGE_CONFLICT")
+            if correlation_id:
+                record_event(db, actor_user_id=None, action="lab.result.ingest", resource_type="lab_report",
+                             resource_id=report.id, outcome="replayed", correlation_id=correlation_id)
             return ResultReceipt(report.id, report.version, True)
         order = db.scalar(select(LabOrder).where(
             LabOrder.source_system == command.source,
@@ -226,6 +238,9 @@ def ingest_result(factory: sessionmaker[Session], command: ResultCommand) -> Res
                                   value_numeric=supplied.value_numeric if supplied else None,
                                   value_text=supplied.value_text if supplied else None))
         order.status = "reported"
+        if correlation_id:
+            record_event(db, actor_user_id=None, action="lab.result.ingest", resource_type="lab_report",
+                         resource_id=report.id, outcome="allowed", correlation_id=correlation_id)
         return ResultReceipt(report.id, version, False)
 
 

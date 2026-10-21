@@ -9,6 +9,7 @@ class Settings:
     database_url: str
     app_origin: str
     cookie_secure: bool
+    hl7_service_secret: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -25,4 +26,7 @@ class Settings:
             raise ValueError("APP_ORIGIN must use HTTPS in production")
         if not app_origin.startswith(("http://", "https://")):
             raise ValueError("APP_ORIGIN must be an HTTP(S) origin")
-        return cls(database_url, app_origin, app_env == "production")
+        hl7_service_secret = os.getenv("HL7_SERVICE_SECRET") or None
+        if app_env == "production" and hl7_service_secret and len(hl7_service_secret) < 32:
+            raise ValueError("HL7_SERVICE_SECRET must be at least 32 characters in production")
+        return cls(database_url, app_origin, app_env == "production", hl7_service_secret)

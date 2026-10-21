@@ -2,7 +2,7 @@
 
 Les identifiants T01 à T12 sont des repères locaux, pas des numéros d'issues GitHub. Chaque section peut devenir une issue à partir du modèle fourni.
 
-État au 21 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. T04 possède un service interne pour les demandes, résultats, valeurs manquantes, rejeux et corrections, ainsi que des tests SQLite. La migration `0002_domains` crée aussi les tables RIS et imagerie, mais leurs services ne sont pas livrés. PostgreSQL n'a pas encore été vérifié ; T05–T12 restent à réaliser.
+État au 21 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. T04 possède un service interne pour les demandes, résultats, valeurs manquantes, rejeux et corrections. T05 possède un adaptateur HTTP local, un parseur du profil DEMO-001, des ACK et un émetteur de fixtures. Ces composants sont testés sur SQLite ; les réceptions concurrentes et PostgreSQL restent à vérifier. La migration `0002_domains` crée aussi les tables RIS et imagerie, mais leurs services T06–T12 ne sont pas livrés.
 
 ## T01 : environnement local reproductible
 
@@ -36,7 +36,7 @@ Implémenter commandes, rapports, observations, règles de valeurs manquantes et
 
 Acceptation : une observation disponible porte une valeur ; la CRP manquante reste nulle ; une correction crée une nouvelle version ; aucune écriture dans les tables d'identité hors service prévu.
 
-État : service interne et projection implémentés ; cinq tests métier et un test de migration passent sur SQLite. L'adaptateur HL7, les essais concurrents et PostgreSQL restent à valider.
+État : service interne et projection implémentés ; cinq tests métier et un test de migration passent sur SQLite. Les essais concurrents et PostgreSQL restent à valider.
 
 ## T05 : adaptateur et simulateur HL7
 
@@ -45,6 +45,8 @@ Lot B. Dépendances : T04 et profil T02.
 Construire les messages synthétiques du profil accepté, leur réception, parsing, validation, corrélation, transactions et ACK.
 
 Acceptation : demande et résultat intégrés, rejeu exact sans doublon, conflit même ID/autre contenu, rejeux concurrents maîtrisés, rejet patient inconnu, ACK positif seulement après commit.
+
+État : premier transport HTTP, parseur strict, émetteur de fixtures et six tests HTTP implémentés sur SQLite. Les rejeux concurrents et le parcours PostgreSQL restent à valider avant clôture complète.
 
 ## T06 : workflow RIS et compte rendu
 

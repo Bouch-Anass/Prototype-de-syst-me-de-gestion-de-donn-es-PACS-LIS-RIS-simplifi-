@@ -1,6 +1,6 @@
 # Backend
 
-Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède maintenant ses ingestions et sa projection internes, testées sur SQLite. Les adaptateurs HL7, Orthanc et la synthèse clinique restent à développer.
+Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède ses ingestions et sa projection internes. L'adaptateur HTTP HL7 T05 accepte les fixtures synthétiques OML/ORU et produit un ACK après commit. Orthanc et la synthèse clinique restent à développer.
 
 L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie ; seuls les services laboratoire sont actuellement implémentés. Aucun schéma n'est créé automatiquement lors des requêtes.
 
@@ -23,6 +23,7 @@ py -m venv .venv
 $env:APP_ENV = 'development'
 $env:APP_ORIGIN = 'http://127.0.0.1:8000'
 $dbPassword = (Get-Content -Raw infra/.secrets/postgres_password.txt).Trim()
+$env:HL7_SERVICE_SECRET = (Get-Content -Raw infra/.secrets/hl7_service_secret.txt).Trim()
 $env:DATABASE_URL = "postgresql+psycopg://app:$dbPassword@127.0.0.1:5433/pacs_lis_ris"
 Set-Location backend
 $env:PYTHONPATH = 'src'
@@ -49,4 +50,17 @@ Depuis la racine, après installation des dépendances :
 ```
 
 Les tests backend utilisent SQLite en mémoire uniquement sous `APP_ENV=test`. Le moteur applicatif local exige PostgreSQL et le pilote psycopg. La migration et ses tables doivent encore être vérifiées sur un poste avec Docker ; le contrôle local SQLite ne prouve pas le comportement PostgreSQL.
+
+## Envoyer les messages synthétiques HL7
+
+Initialisez d'abord les secrets avec `python scripts/init_local_env.py` depuis la racine. Dans le terminal du backend, `HL7_SERVICE_SECRET` doit être chargé avant le lancement d'Uvicorn. Dans un autre terminal PowerShell, depuis la racine :
+
+```powershell
+$env:HL7_SERVICE_SECRET = (Get-Content -Raw infra/.secrets/hl7_service_secret.txt).Trim()
+python simulators/lis/send_hl7.py order.oml.hl7
+python simulators/lis/send_hl7.py result.nominal.oru.hl7
+python simulators/lis/send_hl7.py result.correction.oru.hl7
+```
+
+Les réponses contiennent `MSA|AA|...` uniquement après commit. Un rejeu exact reçoit le même acquittement logique sans créer une seconde version ; une réutilisation d'ID avec d'autres octets reçoit HTTP 409 et `MSA|AR`. `result.missing-crp.oru.hl7` remplace le nominal dans un scénario isolé. L'endpoint `/internal/hl7/messages` exige le secret de service et ne doit pas être routé par un proxy public. Le secret n'est jamais envoyé au navigateur.
 

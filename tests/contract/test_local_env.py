@@ -25,7 +25,9 @@ class LocalEnvironmentTests(unittest.TestCase):
                     init_local_env.main()
                 password = (Path(directory) / "postgres_password.txt").read_text(encoding="utf-8")
                 orthanc = (Path(directory) / "orthanc.secret.json").read_text(encoding="utf-8")
+                hl7_secret = (Path(directory) / "hl7_service_secret.txt").read_text(encoding="utf-8")
                 self.assertGreater(len(password.strip()), 30)
+                self.assertGreater(len(hl7_secret.strip()), 30)
                 config = json.loads(orthanc)
                 self.assertTrue(config["AuthenticationEnabled"])
                 self.assertGreater(len(config["RegisteredUsers"]["demo"]), 30)
@@ -33,7 +35,9 @@ class LocalEnvironmentTests(unittest.TestCase):
                     init_local_env.main()
                 self.assertEqual((Path(directory) / "postgres_password.txt").read_text(encoding="utf-8"), password)
                 self.assertEqual((Path(directory) / "orthanc.secret.json").read_text(encoding="utf-8"), orthanc)
+                self.assertEqual((Path(directory) / "hl7_service_secret.txt").read_text(encoding="utf-8"), hl7_secret)
                 self.assertNotIn(password.strip(), output.getvalue())
+                self.assertNotIn(hl7_secret.strip(), output.getvalue())
                 self.assertNotIn(config["RegisteredUsers"]["demo"], output.getvalue())
         finally:
             init_local_env.SECRETS = original

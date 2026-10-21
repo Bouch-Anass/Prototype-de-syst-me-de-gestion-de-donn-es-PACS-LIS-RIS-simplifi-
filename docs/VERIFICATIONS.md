@@ -35,3 +35,9 @@ Ce contrôle n'est pas une preuve d'exécution sur PostgreSQL. Docker et psycopg
 `python -m unittest discover -s tests/backend -v` a exécuté 15 tests avec succès, dont cinq nouveaux tests métier laboratoire sur SQLite : rejeu exact et conflit, valeur manquante distincte de zéro, correction en nouvelle version, rejet des valeurs/codes/unités invalides et refus d'un rattachement contradictoire. Un sixième test a appliqué les migrations jusqu'à `0002_domains` dans une base SQLite temporaire ; `alembic check` n'a détecté aucun écart entre schéma et modèles. Les 17 tests de contrat, `python scripts/check_repo.py` et `git diff --check` ont également réussi.
 
 Ces essais ne couvrent ni la réception HL7 réelle, ni des ingestions concurrentes sur PostgreSQL. Docker n'est pas disponible sur ce poste ; la validation PostgreSQL et la persistance des volumes restent ouvertes.
+
+## Première tranche HL7 T05 — 21 octobre 2026
+
+`python -m unittest discover -s tests/backend -v` a exécuté 21 tests avec succès, dont six nouveaux tests HTTP du profil local : demande et résultat, CRP absente, rejeu exact, correction, conflit d'identifiant, valeur mal formée, patient inconnu, authentification, limite de taille et échec de l'audit. Dans ce dernier cas, aucun ACK positif ni écriture métier ne subsiste. Les 17 tests de contrat restent réussis.
+
+Le sender CLI n'a pas été essayé contre un serveur PostgreSQL réel. Les tests utilisent SQLite en mémoire et ne prouvent pas le comportement sous deux réceptions concurrentes, la configuration réseau du proxy, ni la persistance Docker.

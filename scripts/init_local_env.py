@@ -35,8 +35,11 @@ def main() -> None:
         SECRETS / "orthanc.secret.json",
         json.dumps(orthanc_config, indent=2) + "\n",
     )
+    hl7_created = create_once(
+        SECRETS / "hl7_service_secret.txt", secrets.token_urlsafe(36) + "\n"
+    )
     print("Local secrets ready in infra/.secrets (ignored by Git).")
-    if not (postgres_created and orthanc_created):
+    if not (postgres_created and orthanc_created and hl7_created):
         print("Existing secret files were preserved.")
     print("Do not share or commit these files. See infra/README.md for startup.")
 

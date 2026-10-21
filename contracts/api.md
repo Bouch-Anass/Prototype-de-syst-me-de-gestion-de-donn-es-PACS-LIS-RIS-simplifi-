@@ -15,7 +15,7 @@
 
 D12 fixe pour T03 une session côté serveur avec cookie HttpOnly et SameSite=Lax, expiration après 30 minutes d'inactivité et 8 heures au maximum ; `Secure` est activé sous `APP_ENV=production` avec origine HTTPS. Le login vérifie l'origine ; les mutations authentifiées utilisent l'origine et `X-CSRF-Token`. Ces mécanismes sont implémentés dans la première tranche T03 pour login, logout, recherche et rencontres. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le premier jalon retourne 403 pour une ressource existante hors contexte et 404 pour une ressource inexistante, sans contenu clinique dans les deux cas.
 
-La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. Les autres routes de cette table sont encore à développer.
+La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. La route interne HL7 est implémentée pour le profil local DEMO-001 ; les routes de synthèse et d'imagerie restent à développer.
 
 ## Propositions de routes d'écriture, à valider avant implémentation
 
