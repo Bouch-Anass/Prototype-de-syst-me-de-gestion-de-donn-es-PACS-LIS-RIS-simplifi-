@@ -1,8 +1,8 @@
 # Backend
 
-Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède ses ingestions et sa projection internes. L'adaptateur HTTP HL7 T05 accepte les fixtures synthétiques OML/ORU et produit un ACK après commit. Le service interne T07 rapproche les études Orthanc et actualise leur disponibilité. La synthèse clinique reste à développer.
+Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède ses ingestions et sa projection internes. L'adaptateur HTTP HL7 T05 accepte les fixtures synthétiques OML/ORU et produit un ACK après commit. Le service RIS T06 gère en interne les demandes, examens et comptes rendus validés. Le service interne T07 rapproche les études Orthanc et actualise leur disponibilité. La synthèse clinique reste à développer.
 
-L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie ; les services laboratoire et imagerie T07 sont implémentés. Le workflow RIS T06 reste à construire. Aucun schéma n'est créé automatiquement lors des requêtes.
+L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie ; les services laboratoire, RIS T06 et imagerie T07 sont implémentés. Les routes RIS publiques restent à définir et exposer. Aucun schéma n'est créé automatiquement lors des requêtes.
 
 | Emplacement | Responsabilité |
 |---|---|

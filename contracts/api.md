@@ -25,7 +25,7 @@ La recherche T03 exige `identifier_domain` et `identifier` en paramètres de req
 | `PATCH /api/v1/radiology-exams/{id}` | Faire évoluer l'état d'un examen | C |
 | `PUT /api/v1/radiology-exams/{id}/report` | Enregistrer le compte rendu courant | C |
 
-Ces routes ne sont pas présentées comme déjà spécifiées dans les PDF. Les transitions, droits et validations doivent être testés avant exposition. Les données initiales peuvent être créées par un seed tant que ces routes ne sont pas prêtes.
+Ces routes ne sont pas présentées comme déjà spécifiées dans les PDF. Le service interne T06 teste maintenant les transitions et la validation par radiologue, mais ces routes ne sont pas exposées. Leur exposition devra intégrer session, CSRF, réponse d'erreur et audit des refus. Les données initiales du scénario T07 peuvent encore être créées par un seed.
 
 ## Forme de la synthèse
 

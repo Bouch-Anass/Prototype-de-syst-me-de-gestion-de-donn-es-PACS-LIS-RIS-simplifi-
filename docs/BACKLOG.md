@@ -2,7 +2,7 @@
 
 Les identifiants T01 à T12 sont des repères locaux, pas des numéros d'issues GitHub. Chaque section peut devenir une issue à partir du modèle fourni.
 
-État au 21 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. T04 possède un service interne pour les demandes, résultats, valeurs manquantes, rejeux et corrections. T05 possède un adaptateur HTTP local, un parseur du profil DEMO-001, des ACK et un émetteur de fixtures. T07 possède un générateur DICOM synthétique, un envoi C-STORE testé en boucle locale et un service interne de rapprochement et disponibilité Orthanc testé avec un faux transport. Ces composants métier sont testés sur SQLite ; PostgreSQL et l'import Orthanc Docker restent à vérifier. T06 et T08–T12 ne sont pas livrés.
+État au 21 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. T04 possède un service interne pour les demandes, résultats, valeurs manquantes, rejeux et corrections. T05 possède un adaptateur HTTP local, un parseur du profil DEMO-001, des ACK et un émetteur de fixtures. T06 possède un service interne de workflow RIS et de validation radiologique. T07 possède un générateur DICOM synthétique, un envoi C-STORE testé en boucle locale et un service interne de rapprochement et disponibilité Orthanc testé avec un faux transport. Ces composants métier sont testés sur SQLite ; PostgreSQL et l'import Orthanc Docker restent à vérifier. T08–T12 ne sont pas livrés.
 
 ## T01 : environnement local reproductible
 
@@ -56,6 +56,8 @@ Implémenter demandes, examens et compte rendu courant. Définir et tester les t
 
 Acceptation : rattachement à la rencontre, accession unique dans le périmètre retenu, date de réalisation et validation cohérentes, transition interdite refusée.
 
+État : première tranche interne implémentée avec accès explicite par rencontre, accession unique dans la base, transitions contrôlées, compte rendu final immuable et audit transactionnel. Cinq tests métier passent sur SQLite. Les routes HTTP proposées restent à valider et exposer ; PostgreSQL et la concurrence restent à vérifier.
+
 ## T07 : Orthanc et rapprochement des études
 
 Lot C. Dépendances : T01, T02 et T06.
@@ -64,7 +66,7 @@ Générer/importer une étude synthétique, lire les métadonnées Orthanc et re
 
 Acceptation : étude correcte retrouvée, mauvais patient et accession inconnue refusés, doublon d'étude maîtrisé, arrêt Orthanc signalé sans perte de données métier.
 
-État : première tranche T07 implémentée. Le seed local prépare la demande et l'examen DEMO-001 jusqu'à la réalisation de T06. Le rapprochement vérifie les clés, maîtrise le rejeu et les conflits, audite les changements et actualise les comptes datés. Une panne Orthanc conserve l'association et la dernière synchronisation. Douze tests backend SQLite avec faux Orthanc et un test de C-STORE vers un serveur de boucle locale passent. L'import dans l'image Orthanc Docker et les courses concurrentes PostgreSQL restent à vérifier ; l'accès aux pixels par le navigateur relève de T10.
+État : première tranche T07 implémentée. Le seed local prépare encore la demande et l'examen DEMO-001 pour les essais T07 ; il ne traverse pas le workflow T06. Le rapprochement vérifie les clés, maîtrise le rejeu et les conflits, audite les changements et actualise les comptes datés. Une panne Orthanc conserve l'association et la dernière synchronisation. Douze tests backend SQLite avec faux Orthanc et un test de C-STORE vers un serveur de boucle locale passent. L'import dans l'image Orthanc Docker et les courses concurrentes PostgreSQL restent à vérifier ; l'accès aux pixels par le navigateur relève de T10.
 
 ## T08 : endpoint de synthèse
 

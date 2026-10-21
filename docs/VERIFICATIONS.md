@@ -48,4 +48,10 @@ Le sender CLI n'a pas été essayé contre un serveur PostgreSQL réel. Les test
 
 Le générateur a créé localement un fichier DICOM synthétique avec pydicom 3.0.2. Un test séparé avec pynetdicom 3.0.4 a vérifié les tags et un C-STORE réussi vers un serveur DICOM de boucle locale (`python -m unittest discover -s tests/modality -v`, 1 test). Ces dépendances ont été installées dans un environnement isolé ; le workflow CI les installe explicitement.
 
-Docker n'est pas disponible sur ce poste. Aucun C-STORE vers l'image Orthanc du Compose, appel REST réel, essai PostgreSQL concurrent ou parcours viewer n'a été validé. T06 fournit encore le workflow RIS ; T07 utilise un seed radiologique synthétique limité à la démonstration.
+Docker n'est pas disponible sur ce poste. Aucun C-STORE vers l'image Orthanc du Compose, appel REST réel, essai PostgreSQL concurrent ou parcours viewer n'a été validé. Au moment de ce contrôle, T06 n'était pas encore implémenté ; T07 utilisait un seed radiologique synthétique limité à la démonstration.
+
+## Première tranche RIS T06 — 21 octobre 2026
+
+`python -m unittest discover -s tests/backend -q` a exécuté 38 tests avec succès sur SQLite en mémoire, dont cinq nouveaux tests RIS : parcours demande → examen réalisé → compte rendu final, refus des transitions interdites, accès par rôle et rencontre, accession/date cohérentes et rollback si l'audit échoue. Le contrôle de migration existant n'a détecté aucun écart de schéma. Les 17 tests de contrat, `python scripts/check_repo.py` et `git diff --check` ont réussi.
+
+Le service RIS est interne. Les routes HTTP envisagées dans le contrat ne sont pas exposées ; l'audit des refus à cette future frontière reste à réaliser. Aucun parcours PostgreSQL ni test de transitions concurrentes n'a été effectué. Le seed T07 n'utilise pas encore ce service.
