@@ -55,3 +55,17 @@ Docker n'est pas disponible sur ce poste. Aucun C-STORE vers l'image Orthanc du 
 `python -m unittest discover -s tests/backend -q` a exécuté 38 tests avec succès sur SQLite en mémoire, dont cinq nouveaux tests RIS : parcours demande → examen réalisé → compte rendu final, refus des transitions interdites, accès par rôle et rencontre, accession/date cohérentes et rollback si l'audit échoue. Le contrôle de migration existant n'a détecté aucun écart de schéma. Les 17 tests de contrat, `python scripts/check_repo.py` et `git diff --check` ont réussi.
 
 Le service RIS est interne. Les routes HTTP envisagées dans le contrat ne sont pas exposées ; l'audit des refus à cette future frontière reste à réaliser. Aucun parcours PostgreSQL ni test de transitions concurrentes n'a été effectué. Le seed T07 n'utilise pas encore ce service.
+
+## Tranches T06/T08–T12 — 21 octobre 2026
+
+`python -m unittest discover -s tests/backend -q` a exécuté **46 tests réussis** sur SQLite, dont les nouvelles vérifications des routes RIS avec session et CSRF, de la synthèse issue de HL7/RIS/Orthanc, de la CRP absente, de la panne PACS, des refus de rôle/rencontre, de l'audit requis, de l'aperçu PNG contrôlé et des assets frontend servis par FastAPI. `node --check frontend/app.js`, les 17 tests de contrat, `python scripts/check_repo.py` et `git diff --check` ont réussi. Le test de migration existant n'a détecté aucun écart avec les modèles.
+
+Le [guide de démonstration](DEMO.md) et `scripts/smoke_live.py` fournissent une procédure depuis un clone équipé de Docker. Au moment de ce contrôle, le parcours Docker n'était pas exécuté. Les vérifications PostgreSQL 18 locales sont consignées ci-dessous. L'aperçu PNG est une représentation de démonstration non diagnostique, pas un viewer DICOM complet.
+
+## PostgreSQL 18 local — 21 octobre 2026
+
+Un cluster PostgreSQL 18.1 temporaire, lié à `127.0.0.1:55432`, a été initialisé dans `.dist/pg-validation-18` pour cette vérification ; ce n'est pas l'image PostgreSQL 17 du Compose. Le pilote `psycopg[binary]==3.3.6` a été installé dans `.dist/pgdeps` hors Git. Sur une base de test vierge, `alembic upgrade head` puis `alembic check` ont réussi. Le test `tests/integration/test_postgres_concurrency.py` a validé les rejeux HL7 simultanés, l'unicité d'accession, les transitions RIS concurrentes, le rapprochement d'étude concurrent, puis login, synthèse et aperçu via l'API avec faux Orthanc. Un seul traitement métier a été conservé pour chaque course vérifiée.
+
+Après un arrêt/redémarrage du cluster local, les compteurs `patient`, `lab_report` et `imaging_study` sont restés `1/1/1`. Le p95 de **30 lectures de synthèse après échauffement** était **0,058 s** sur cette configuration PostgreSQL 18 avec faux Orthanc ; il ne mesure pas le temps d'un Orthanc réel. `scripts/smoke_live.py` a réussi sur HTTP contre le backend lié à ce cluster, Orthanc étant absent : la synthèse conservait LIS/RIS et signalait l'imagerie indisponible.
+
+Docker et les navigateurs automatisables ne sont pas disponibles dans cette session. L'image PostgreSQL 17, Orthanc Docker, le navigateur, les healthchecks Compose, cinq répétitions du parcours réel et le délai d'intégration HL7 nominal restent à vérifier. La procédure de [DEMO.md](DEMO.md) sert à réaliser ces essais sur un poste Docker.

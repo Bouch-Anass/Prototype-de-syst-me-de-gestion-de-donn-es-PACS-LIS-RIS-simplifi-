@@ -2,7 +2,7 @@
 
 Les identifiants T01 à T12 sont des repères locaux, pas des numéros d'issues GitHub. Chaque section peut devenir une issue à partir du modèle fourni.
 
-État au 21 octobre 2026 : T01 possède un Compose, des secrets locaux et des instructions, mais le démarrage et la persistance restent à vérifier sur un poste équipé de Docker. T02 possède un profil HL7 local, des fixtures générées et un aperçu frontend ; les contrats attendent la revue d'équipe. T03 possède une première tranche exécutable : migration, identité synthétique, sessions, accès par rencontre et audit. T04 possède un service interne pour les demandes, résultats, valeurs manquantes, rejeux et corrections. T05 possède un adaptateur HTTP local, un parseur du profil DEMO-001, des ACK et un émetteur de fixtures. T06 possède un service interne de workflow RIS et de validation radiologique. T07 possède un générateur DICOM synthétique, un envoi C-STORE testé en boucle locale et un service interne de rapprochement et disponibilité Orthanc testé avec un faux transport. Ces composants métier sont testés sur SQLite ; PostgreSQL et l'import Orthanc Docker restent à vérifier. T08–T12 ne sont pas livrés.
+État au 21 octobre 2026 : T01/T02 fournissent Compose, contrats et fixtures ; T03–T07 fournissent identité, laboratoire, HL7, RIS et rapprochement d'imagerie ; T08–T10 ajoutent synthèse, mode API de l'interface et aperçu PNG contrôlé ; T11 possède un parcours intégré automatisé sur SQLite et PostgreSQL 18 local avec faux Orthanc ; T12 possède une procédure et un script de vérification locale. Les courses HL7/RIS/imagerie et la persistance ont été vérifiées sur un cluster PostgreSQL 18 temporaire. L'image PostgreSQL 17 du Compose, Orthanc Docker et le parcours navigateur réel doivent encore être validés.
 
 ## T01 : environnement local reproductible
 
@@ -46,7 +46,7 @@ Construire les messages synthétiques du profil accepté, leur réception, parsi
 
 Acceptation : demande et résultat intégrés, rejeu exact sans doublon, conflit même ID/autre contenu, rejeux concurrents maîtrisés, rejet patient inconnu, ACK positif seulement après commit.
 
-État : premier transport HTTP, parseur strict, émetteur de fixtures et six tests HTTP implémentés sur SQLite. Les rejeux concurrents et le parcours PostgreSQL restent à valider avant clôture complète.
+État : transport HTTP, parseur strict, émetteur de fixtures et tests HTTP implémentés sur SQLite. Des rejeux simultanés ont produit un seul traitement métier sur PostgreSQL 18 local. Le parcours avec PostgreSQL 17 Docker reste à valider.
 
 ## T06 : workflow RIS et compte rendu
 
@@ -56,7 +56,7 @@ Implémenter demandes, examens et compte rendu courant. Définir et tester les t
 
 Acceptation : rattachement à la rencontre, accession unique dans le périmètre retenu, date de réalisation et validation cohérentes, transition interdite refusée.
 
-État : première tranche interne implémentée avec accès explicite par rencontre, accession unique dans la base, transitions contrôlées, compte rendu final immuable et audit transactionnel. Cinq tests métier passent sur SQLite. Les routes HTTP proposées restent à valider et exposer ; PostgreSQL et la concurrence restent à vérifier.
+État : service et routes HTTP implémentés avec accès explicite par rencontre, CSRF, accession unique dans la base, transitions contrôlées, compte rendu final immuable et audit transactionnel. Tests métier et HTTP réussis sur SQLite ; accession, réalisation et validation concurrentes vérifiées sur PostgreSQL 18 local. PostgreSQL 17 Docker reste à vérifier.
 
 ## T07 : Orthanc et rapprochement des études
 
@@ -66,7 +66,7 @@ Générer/importer une étude synthétique, lire les métadonnées Orthanc et re
 
 Acceptation : étude correcte retrouvée, mauvais patient et accession inconnue refusés, doublon d'étude maîtrisé, arrêt Orthanc signalé sans perte de données métier.
 
-État : première tranche T07 implémentée. Le seed local prépare encore la demande et l'examen DEMO-001 pour les essais T07 ; il ne traverse pas le workflow T06. Le rapprochement vérifie les clés, maîtrise le rejeu et les conflits, audite les changements et actualise les comptes datés. Une panne Orthanc conserve l'association et la dernière synchronisation. Douze tests backend SQLite avec faux Orthanc et un test de C-STORE vers un serveur de boucle locale passent. L'import dans l'image Orthanc Docker et les courses concurrentes PostgreSQL restent à vérifier ; l'accès aux pixels par le navigateur relève de T10.
+État : première tranche T07 implémentée. Le seed local prépare la demande et l'examen DEMO-001 ; la commande `complete-radiology-demo` utilise ensuite le workflow T06. Le rapprochement vérifie les clés, maîtrise le rejeu et les conflits, audite les changements et actualise les comptes datés. Une panne Orthanc conserve l'association et la dernière synchronisation. Les tests SQLite avec faux Orthanc et un C-STORE en boucle locale passent ; un rattachement concurrent a été vérifié sur PostgreSQL 18 local. L'import dans l'image Orthanc Docker reste à vérifier ; l'aperçu contrôlé relève de T10.
 
 ## T08 : endpoint de synthèse
 
@@ -76,6 +76,8 @@ Composer le dossier avec droits, audit, warnings et erreurs. Documenter les donn
 
 Acceptation : réponses compatibles avec les trois mocks ; HTTP 200 dégradé si seul Orthanc tombe ; HTTP 503 si la base métier ne répond plus ; mesure du p95 sans pixels.
 
+État : endpoint et composition inter-domaines implémentés ; nominal, CRP absente, PACS indisponible, droits et échec d'audit testés sur SQLite. Le p95 de 30 lectures était 0,058 s sur PostgreSQL 18 local avec faux Orthanc ; la mesure sur le stack Docker réel reste à faire.
+
 ## T09 : interface sur mocks puis API
 
 Lot D. Dépendance : T02 ; T08 pour l'intégration réelle.
@@ -83,6 +85,8 @@ Lot D. Dépendance : T02 ; T08 pour l'intégration réelle.
 Créer recherche patient, sélection de rencontre et dossier, états de chargement/refus/erreur, onglets ou sections biologiques et radiologiques.
 
 Acceptation : les trois fixtures sont affichables, la CRP manquante ne vaut jamais zéro, aucune requête directe à la base ou à l'administration Orthanc, aucun secret de service côté client.
+
+État : les mocks restent disponibles et un mode API locale ajoute connexion, recherche exacte, choix de rencontre, synthèse, erreurs et déconnexion. Syntaxe JavaScript et assets servis par FastAPI vérifiés ; parcours navigateur réel à vérifier.
 
 ## T10 : accès d'imagerie contrôlé
 
@@ -92,6 +96,8 @@ Choisir le viewer de démonstration, implémenter la route d'accès et les véri
 
 Acceptation : accès autorisé fonctionnel, accès interdit bloqué même avec URL connue, aucune credential Orthanc exposée, erreur lisible en cas d'indisponibilité. Aucun usage diagnostique revendiqué.
 
+État : D14 fixe un aperçu PNG non diagnostique via backend. Contrôles de session, rôle et rencontre, refus et panne PACS testés avec faux Orthanc. Import et affichage sur Orthanc réel à vérifier.
+
 ## T11 : intégration nominale et cas dégradés
 
 Lot E avec A, B, C, D. Dépendances : T05 à T10 selon scénario.
@@ -100,6 +106,8 @@ Automatiser les parcours du [plan d'intégration](../tests/integration/README.md
 
 Acceptation : un scénario reproductible prouve la chaîne complète ; les rejouabilités et pannes sont vérifiées par assertions en base et API, pas seulement par captures d'écran.
 
+État : le test API intégré HL7 → laboratoire → RIS → imagerie → synthèse, ainsi que les variantes CRP absente et PACS en panne, passent sur SQLite avec faux Orthanc. Le nominal et les courses passent aussi sur PostgreSQL 18 local avec faux Orthanc. Le parcours réel Docker, le navigateur et cinq répétitions complètes restent à exécuter.
+
 ## T12 : documentation et démonstration reproductible
 
 Lot E avec revue des domaines. Dépendance : T11 pour la clôture.
@@ -107,6 +115,8 @@ Lot E avec revue des domaines. Dépendance : T11 pour la clôture.
 Mettre à jour les commandes exactes, décisions, contrats, versions et limites. Ajouter les six PDF existants sans les modifier si leur publication est souhaitée.
 
 Acceptation : exécution depuis un clone vierge, preuves de tests, liste transparente des éléments non implémentés, absence de données réelles et secrets.
+
+État : [procédure locale](DEMO.md) et script `scripts/smoke_live.py` ajoutés. Leur exécution sur un clone vierge avec Docker, les mesures et le bilan final restent à faire.
 
 ## Définition commune de terminé
 
