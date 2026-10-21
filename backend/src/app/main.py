@@ -302,6 +302,63 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         except RadiologyError as exc:
             radiology_error(request, actor.user_id, "radiology.report.validate", str(exam_id), exc)
 
+    def authorized_study(study_id: UUID, request: Request, db: Session, action: str):
+        actor = current_actor(db, request)
+        study = db.get(ImagingStudy, str(study_id))
+        exam = db.get(RadiologyExam, study.exam_id) if study else None
+        order = db.get(RadiologyOrder, exam.order_id) if exam else None
+        if study is None or order is None:
+            record_event(db, actor_user_id=actor.user_id, action=action, resource_type="imaging_study",
+                         resource_id=None, outcome="not_found", correlation_id=request.state.correlation_id)
+            db.commit()
+            raise ApiError(*NOT_FOUND)
+        grant = db.get(UserEncounterAccess, (actor.user_id, order.encounter_id))
+        if not actor.roles.intersection({"physician", "radiologist"}) or grant is None:
+            record_event(db, actor_user_id=actor.user_id, action=action, resource_type="imaging_study",
+                         resource_id=study.id, outcome="denied", correlation_id=request.state.correlation_id)
+            db.commit()
+            raise ApiError(*ACCESS_DENIED)
+        record_event(db, actor_user_id=actor.user_id, action=action, resource_type="imaging_study",
+                     resource_id=study.id, outcome="allowed", correlation_id=request.state.correlation_id)
+        result = (study.id, study.exam_id, study.orthanc_study_id)
+        db.commit()
+        return result
+
+    @app.get("/api/v1/imaging-studies/{study_id}")
+    def imaging_metadata(study_id: UUID, request: Request, db: Session = Depends(get_db)):
+        authorized_study(study_id, request, db, "imaging.metadata")
+        study = db.get(ImagingStudy, str(study_id))
+        if study is None:
+            raise ApiError(*NOT_FOUND)
+        return {"id": study.id, "exam_id": study.exam_id,
+                "study_instance_uid": study.study_instance_uid,
+                "series_count": study.series_count, "instance_count": study.instance_count,
+                "availability_status": study.availability_status,
+                "last_synced_at": _timestamp(study.last_synced_at) if study.last_synced_at else None}
+
+    @app.get("/api/v1/imaging-studies/{study_id}/viewer-link")
+    def viewer_link(study_id: UUID, request: Request, db: Session = Depends(get_db)):
+        _, exam_id, _ = authorized_study(study_id, request, db, "imaging.viewer_link")
+        state = get_availability(session_factory, orthanc_client, exam_id=exam_id,
+                                 correlation_id=request.state.correlation_id)
+        if state["availability_status"] != "available":
+            raise ApiError(503, "IMAGING_UNAVAILABLE", "Imagerie temporairement indisponible.")
+        return {"url": f"/api/v1/imaging-studies/{study_id}/preview"}
+
+    @app.get("/api/v1/imaging-studies/{study_id}/preview")
+    def imaging_preview(study_id: UUID, request: Request, db: Session = Depends(get_db)):
+        _, exam_id, orthanc_id = authorized_study(study_id, request, db, "imaging.preview")
+        state = get_availability(session_factory, orthanc_client, exam_id=exam_id,
+                                 correlation_id=request.state.correlation_id)
+        if state["availability_status"] != "available" or not orthanc_id:
+            raise ApiError(503, "IMAGING_UNAVAILABLE", "Imagerie temporairement indisponible.")
+        try:
+            image = orthanc_client.get_preview(orthanc_id, 500)
+        except OrthancError as exc:
+            raise ApiError(503, "IMAGING_UNAVAILABLE", "Imagerie temporairement indisponible.") from exc
+        return Response(content=image, media_type="image/png",
+                        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
     return app
 
 

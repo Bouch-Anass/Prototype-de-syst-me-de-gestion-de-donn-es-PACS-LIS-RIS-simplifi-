@@ -188,6 +188,25 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(self.client.put(path + "/report", json={"content": "changed"},
                                          headers=self.csrf_headers()).status_code, 409)
 
+    def test_viewer_is_authorized_and_pacs_outage_is_contained(self):
+        linked = match_study(self.factory, self.orthanc, patient_id="10000000-0000-4000-8000-000000000001",
+                             accession_number="DEMO-ACC001", study_instance_uid="2.25.10101", modality="CT")
+        path = f"/api/v1/imaging-studies/{linked['imaging_study_id']}"
+        self.assertEqual(self.client.get(path + "/preview").status_code, 401)
+        self.login("technician")
+        self.assertEqual(self.client.get(path + "/preview").status_code, 403)
+        self.login()
+        self.assertEqual(self.client.get(path).status_code, 200)
+        link = self.client.get(path + "/viewer-link")
+        self.assertEqual(link.status_code, 200)
+        self.assertEqual(link.json()["url"], path + "/preview")
+        preview = self.client.get(link.json()["url"])
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.headers["content-type"], "image/png")
+        self.assertEqual(preview.headers["cache-control"], "no-store")
+        self.assertNotIn("orthanc", preview.text.lower())
+        self.orthanc.down = True
+        self.assertEqual(self.client.get(path + "/preview").status_code, 503)
 
 
 if __name__ == "__main__":
