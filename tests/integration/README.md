@@ -1,6 +1,6 @@
-# Tests d'intégration à implémenter
+# Plan d'intégration
 
-Ces scénarios seront automatisés avec le backend et les services réels. Ils ne sont pas exécutables dans ce squelette.
+Les tests backend couvrent sur SQLite, avec faux Orthanc, une partie de ces scénarios : ingestion HL7, versions, CRP manquante, rapprochement, panne PACS, synthèse, droits, audit et aperçu. `test_postgres_concurrency.py` exécute les courses et le parcours API sur une base PostgreSQL locale fraîche lorsque `PG_TEST_DATABASE_URL` est défini. L'URL doit viser `127.0.0.1` ou `localhost` et une base nommée `*_test`, migrée à `0002_domains` et vide de patients ; sans cette variable, le test est ignoré. Le parcours PostgreSQL 17/Orthanc Docker et les pannes de vrais services restent à exécuter. La [procédure locale](../../docs/DEMO.md) décrit leur préparation.
 
 | ID | Scénario | Assertions attendues |
 |---|---|---|

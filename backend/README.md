@@ -1,8 +1,8 @@
 # Backend
 
-Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède ses ingestions et sa projection internes. L'adaptateur HTTP HL7 T05 accepte les fixtures synthétiques OML/ORU et produit un ACK après commit. Le service RIS T06 gère en interne les demandes, examens et comptes rendus validés. Le service interne T07 rapproche les études Orthanc et actualise leur disponibilité. La synthèse clinique reste à développer.
+Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède ses ingestions et sa projection internes. L'adaptateur HTTP HL7 T05 accepte les fixtures synthétiques OML/ORU et produit un ACK après commit. Le service RIS T06 gère les demandes, examens et comptes rendus validés avec routes HTTP protégées. T07 rapproche les études Orthanc, T08 compose la synthèse autorisée et T10 fournit les métadonnées et un aperçu PNG contrôlé.
 
-L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie ; les services laboratoire, RIS T06 et imagerie T07 sont implémentés. Les routes RIS publiques restent à définir et exposer. Aucun schéma n'est créé automatiquement lors des requêtes.
+L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie. Les services métier, leurs routes de lecture et les mutations RIS sont implémentés. Aucun schéma n'est créé automatiquement lors des requêtes.
 
 | Emplacement | Responsabilité |
 |---|---|
@@ -53,6 +53,14 @@ Depuis la racine, après installation des dépendances :
 
 Les tests backend utilisent SQLite en mémoire uniquement sous `APP_ENV=test`. Le moteur applicatif local exige PostgreSQL et le pilote psycopg. La migration et ses tables doivent encore être vérifiées sur un poste avec Docker ; le contrôle local SQLite ne prouve pas le comportement PostgreSQL.
 
+## Synthèse, RIS et aperçu d'imagerie
+
+`GET /api/v1/encounters/{id}/summary` demande une session médecin/radiologue et un accès explicite à la rencontre. Il compose les résultats biologiques courants, les examens RIS et l'état daté des études. Une panne Orthanc rend un HTTP 200 avec avertissement ; une panne de base ou d'audit requis rend HTTP 503 sans dossier. La lecture est auditée avant retour clinique.
+
+Les routes RIS `POST /api/v1/radiology-orders`, `PATCH /api/v1/radiology-exams/{id}`, `PUT /api/v1/radiology-exams/{id}/report` et `POST /api/v1/radiology-exams/{id}/report/validate` exigent session, origine et en-tête CSRF. Le médecin ou radiologue autorisé crée une demande ; seul un radiologue autorisé peut marquer l'examen réalisé, écrire un brouillon et valider. Le rapport final est immuable dans ce schéma.
+
+`GET /api/v1/imaging-studies/{id}` retourne les métadonnées autorisées. `GET /api/v1/imaging-studies/{id}/viewer-link` et la route `/preview` contrôlent à nouveau la session, les droits de rencontre et la disponibilité PACS. La route `/preview` renvoie au plus 8 Mio de PNG, avec `Cache-Control: no-store`. L'interface ne reçoit pas de credential Orthanc. Il s'agit d'un aperçu logiciel non diagnostique, pas d'un viewer DICOM complet. La [démonstration locale](../docs/DEMO.md) décrit l'enchaînement des commandes et le script de vérification.
+
 ## Envoyer les messages synthétiques HL7
 
 Initialisez d'abord les secrets avec `python scripts/init_local_env.py` depuis la racine. Dans le terminal du backend, `HL7_SERVICE_SECRET` doit être chargé avant le lancement d'Uvicorn. Dans un autre terminal PowerShell, depuis la racine :
@@ -93,5 +101,5 @@ $env:ORTHANC_TIMEOUT_MS = '500'
 ..\.venv\Scripts\python -m app.cli refresh-demo-study
 ```
 
-Le premier appel lie le StudyInstanceUID à l'UUID d'examen si le PatientID, son domaine, l'accession et la modalité concordent. Le second retourne `available`, `incomplete` ou `unavailable`, `checked_at` et la date de dernière synchronisation. Une panne Orthanc conserve le rattachement existant et affiche un code d'avertissement. Ces commandes sont internes à la démonstration : aucun endpoint public ni viewer n'est ajouté par T07. L'import réel dans l'image Docker, la persistance PostgreSQL et les cas concurrents doivent encore être validés sur un poste avec Docker.
+Le premier appel lie le StudyInstanceUID à l'UUID d'examen si le PatientID, son domaine, l'accession et la modalité concordent. Le second retourne `available`, `incomplete` ou `unavailable`, `checked_at` et la date de dernière synchronisation. Une panne Orthanc conserve le rattachement existant et affiche un code d'avertissement. Ces commandes restent internes ; les routes de consultation T10 sont décrites plus haut. L'import réel dans l'image Docker, la persistance PostgreSQL et les cas concurrents doivent encore être validés sur un poste avec Docker.
 

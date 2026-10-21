@@ -8,7 +8,7 @@
 - Les modèles d'issues et de pull requests.
 - Les contrôles locaux des documents et des exemples.
 
-T01 fournit le [Compose PostgreSQL/Orthanc](../infra/README.md), T02 un [aperçu frontend statique](../frontend/README.md), T03–T05 le backend d'identité, de laboratoire et de réception HL7, et T07 un service interne de rapprochement d'imagerie. Le [guide backend](../backend/README.md) donne les commandes locales. Le parcours clinique complet n'est pas encore exécutable : le workflow RIS T06 et la synthèse T08 restent à réaliser. Les sections GitHub ci-dessous sont des consignes historiques du pack initial, pas des actions déjà publiées.
+T01 fournit le [Compose PostgreSQL/Orthanc](../infra/README.md), T02 les fixtures, T03–T08 les services et la synthèse, T09 le mode API du frontend, et T10 un aperçu PNG contrôlé. Le [guide de démonstration](DEMO.md) donne le parcours local complet. Son exécution avec Docker reste à vérifier sur un poste équipé. Les sections GitHub ci-dessous sont des consignes historiques du pack initial, pas des actions déjà publiées.
 
 ## Vérification locale
 

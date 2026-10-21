@@ -1,4 +1,4 @@
-# Parcours de bout en bout à implémenter
+# Parcours de bout en bout
 
 ## Parcours nominal
 
@@ -20,5 +20,5 @@
 
 Les captures d'écran complètent les assertions API et base. Elles ne prouvent pas seules les contrôles d'accès ou l'idempotence.
 
-Aucun de ces parcours n'est exécuté par le workflow documentaire initial.
+Les tests API sur SQLite avec faux Orthanc couvrent le nominal, la CRP absente, la panne PACS et des refus d'accès. Le [guide de démonstration](../../docs/DEMO.md) et `scripts/smoke_live.py` préparent un parcours Docker réel ; son exécution dans un navigateur et sur PostgreSQL/Orthanc reste à vérifier.
 
