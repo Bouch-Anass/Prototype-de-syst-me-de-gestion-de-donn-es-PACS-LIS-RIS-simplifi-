@@ -48,6 +48,13 @@ h1 { margin: 0 0 8px; font-size: clamp(32px, 3.4vw, 46px); line-height: 1.15; fo
 .read-only-icon::before { content: ""; position: absolute; width: 7px; height: 7px; left: 1.5px; top: -7px; border: 1.5px solid currentColor; border-bottom: 0; border-radius: 5px 5px 0 0; }
 
 .workspace { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--white); box-shadow: 0 4px 28px rgba(9, 12, 29, .035); }
+.mode-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px 28px; border-bottom: 1px solid var(--line); background: #fcfcfd; }
+.mode-bar .scenario-label { margin-right: 7px; }
+.login-form, .live-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 16px 28px; border-bottom: 1px solid var(--line); }
+.login-form label, .live-controls label { display: grid; gap: 6px; color: #55555e; font-size: 12px; font-weight: 600; }
+.login-form input, .live-controls select { min-width: 170px; height: 42px; padding: 0 12px; border: 1px solid #d9d9df; border-radius: 9px; background: #fff; color: var(--ink); font: 13px var(--font-body); }
+.live-controls select { min-width: 230px; }
+[hidden] { display: none !important; }
 .control-bar { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 22px 28px; border-bottom: 1px solid var(--line); }
 .search-form { display: flex; align-items: end; gap: 10px; width: min(100%, 450px); }
 .search-field { flex: 1; min-width: 0; }
@@ -114,6 +121,8 @@ h3 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.035em; line
 .imaging-section .detail-list { display: block; margin-top: 22px; }
 .imaging-section .detail-list div { padding: 15px 0; }
 .imaging-section .detail-list dd { margin-top: 6px; font-size: 12px; }
+.preview-button { margin-top: 16px; }
+.study-preview { display: block; width: 100%; height: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; }
 .aside-intro { margin: 0; max-width: 250px; color: var(--slate); font-size: 12px; line-height: 1.6; }
 .data-note { margin: 10px 28px 28px; padding: 18px 18px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .note-line { display: block; width: 20px; height: 3px; margin-bottom: 13px; border-radius: 9px; background: var(--violet); }

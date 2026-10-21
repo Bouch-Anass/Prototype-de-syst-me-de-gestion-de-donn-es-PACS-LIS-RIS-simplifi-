@@ -8,9 +8,13 @@ const $ = (selector) => document.querySelector(selector);
 const feedback = $("#feedback");
 const record = $("#record");
 const buttons = [...document.querySelectorAll("[data-scenario]")];
+const modeButtons = [...document.querySelectorAll("[data-mode]")];
 let selectedScenario = "nominal";
 let loadedSummary = null;
 let requestNumber = 0;
+let mode = "mock";
+let liveSession = false;
+let currentPreviewUrl = null;
 
 function setText(selector, value) {
   $(selector).textContent = value == null ? "—" : String(value);
@@ -38,6 +42,8 @@ function detail(label, value) {
 }
 
 function render(summary) {
+  if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+  currentPreviewUrl = null;
   const patient = summary.patient;
   const encounter = summary.encounter;
   setText("#patient-name", patient.display_name);
@@ -125,9 +131,117 @@ function render(summary) {
       detail("Dernière synchronisation", dateTime(study.last_synced_at)),
     );
     pacsContent.append(details);
+    if (mode === "live" && available) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "scenario-button preview-button";
+      button.textContent = "Afficher l’aperçu";
+      button.addEventListener("click", async () => {
+        const thisRequest = requestNumber;
+        button.disabled = true;
+        button.textContent = "Chargement de l’aperçu…";
+        try {
+          const link = await api(`/api/v1/imaging-studies/${encodeURIComponent(study.id)}/viewer-link`);
+          const response = await fetch(link.url, { credentials: "same-origin", cache: "no-store" });
+          if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) throw new Error("preview");
+          const blob = await response.blob();
+          if (thisRequest !== requestNumber || mode !== "live") return;
+          if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+          currentPreviewUrl = URL.createObjectURL(blob);
+          const image = document.createElement("img");
+          image.className = "study-preview";
+          image.alt = "Aperçu synthétique non diagnostique de l’étude";
+          image.src = currentPreviewUrl;
+          pacsContent.append(image);
+          button.remove();
+        } catch {
+          if (thisRequest !== requestNumber || mode !== "live") return;
+          button.disabled = false;
+          button.textContent = "Réessayer l’aperçu";
+          feedback.textContent = "Aperçu d’imagerie indisponible.";
+        }
+      });
+      pacsContent.append(button);
+    }
   }
   record.hidden = false;
+  $("#data-source").textContent = mode === "live" ? "API locale avec accès par rencontre et audit." : "Réponses synthétiques du contrat API T02.";
   feedback.textContent = "";
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...options });
+  if (!response.ok) {
+    let code = "SERVICE_UNAVAILABLE";
+    try { code = (await response.json()).code ?? code; } catch { /* A proxy may return no JSON. */ }
+    const error = new Error(code);
+    error.status = response.status;
+    throw error;
+  }
+  return response.json();
+}
+
+function liveError(error) {
+  if (error.status === 401) {
+    liveSession = false;
+    $("#login-form").hidden = false;
+    $("#live-controls").hidden = true;
+    return "Session expirée. Connectez-vous à nouveau.";
+  }
+  if (error.status === 403) return "Accès refusé pour cette rencontre.";
+  if (error.status === 404) return "Aucun patient fictif ne correspond à cet identifiant exact.";
+  if (error.status === 503) return "Service métier temporairement indisponible.";
+  return "Impossible de joindre l'API locale. Ouvrez cette page depuis le serveur FastAPI.";
+}
+
+async function loadLiveSummary(encounterId) {
+  const thisRequest = ++requestNumber;
+  record.hidden = true;
+  feedback.textContent = "Chargement du dossier…";
+  try {
+    const summary = await api(`/api/v1/encounters/${encodeURIComponent(encounterId)}/summary`);
+    if (thisRequest !== requestNumber || mode !== "live") return;
+    render(summary);
+  } catch (error) {
+    if (thisRequest !== requestNumber) return;
+    feedback.textContent = liveError(error);
+  }
+}
+
+async function searchLivePatient() {
+  if (!liveSession) {
+    feedback.textContent = "Connectez-vous pour rechercher un patient dans l'API locale.";
+    record.hidden = true;
+    return;
+  }
+  const thisRequest = ++requestNumber;
+  record.hidden = true;
+  feedback.textContent = "Recherche du patient…";
+  const identifier = $("#identifier").value.trim();
+  try {
+    const params = new URLSearchParams({ identifier_domain: "DEMO", identifier });
+    const patients = await api(`/api/v1/patients?${params}`);
+    if (thisRequest !== requestNumber || mode !== "live") return;
+    const patient = patients.patients[0];
+    const result = await api(`/api/v1/patients/${encodeURIComponent(patient.id)}/encounters`);
+    if (thisRequest !== requestNumber || mode !== "live") return;
+    const picker = $("#encounter-select");
+    picker.replaceChildren();
+    for (const encounter of result.encounters) {
+      const option = document.createElement("option");
+      option.value = encounter.id;
+      option.textContent = `${encounter.external_id} · ${dateTime(encounter.started_at)}`;
+      picker.append(option);
+    }
+    if (!picker.options.length) {
+      feedback.textContent = "Aucune rencontre accessible pour ce patient.";
+      return;
+    }
+    await loadLiveSummary(picker.value);
+  } catch (error) {
+    if (thisRequest !== requestNumber) return;
+    feedback.textContent = liveError(error);
+  }
 }
 
 async function loadScenario() {
@@ -150,6 +264,7 @@ async function loadScenario() {
 }
 
 function searchPatient() {
+  if (mode === "live") return searchLivePatient();
   if (!loadedSummary) return;
   const identifier = $("#identifier").value.trim();
   if (identifier !== loadedSummary.patient.external_id) {
@@ -172,5 +287,58 @@ for (const button of buttons) {
     loadScenario();
   });
 }
+
+for (const button of modeButtons) {
+  button.addEventListener("click", () => {
+    mode = button.dataset.mode;
+    ++requestNumber;
+    if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+    currentPreviewUrl = null;
+    record.hidden = true;
+    for (const item of modeButtons) item.setAttribute("aria-pressed", String(item === button));
+    $(".scenario-group").hidden = mode === "live";
+    $("#login-form").hidden = mode !== "live" || liveSession;
+    $("#live-controls").hidden = mode !== "live" || !liveSession;
+    if (mode === "live") {
+      if (liveSession) searchLivePatient();
+      else feedback.textContent = "Connectez-vous pour lire un dossier autorisé.";
+    } else {
+      loadScenario();
+    }
+  });
+}
+
+$("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  feedback.textContent = "Connexion…";
+  try {
+    await api("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("#username").value.trim(), password: $("#password").value }) });
+    $("#password").value = "";
+    liveSession = true;
+    $("#login-form").hidden = true;
+    $("#live-controls").hidden = false;
+    await searchLivePatient();
+  } catch (error) {
+    feedback.textContent = error.status === 401 ? "Identifiants invalides." : liveError(error);
+  }
+});
+
+$("#logout-button").addEventListener("click", async () => {
+  const csrf = document.cookie.split("; ").find((item) => item.startsWith("csrf_token="))?.split("=")[1];
+  try {
+    await api("/api/v1/auth/logout", { method: "POST", headers: { "X-CSRF-Token": decodeURIComponent(csrf ?? "") } });
+  } catch { /* Clear this screen even when the session has already expired. */ }
+  liveSession = false;
+  ++requestNumber;
+  if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+  currentPreviewUrl = null;
+  record.hidden = true;
+  $("#login-form").hidden = false;
+  $("#live-controls").hidden = true;
+  feedback.textContent = "Déconnecté.";
+});
+
+$("#encounter-select").addEventListener("change", (event) => loadLiveSummary(event.target.value));
 
 loadScenario();

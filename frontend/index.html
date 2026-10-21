@@ -39,6 +39,11 @@
       </div>
 
       <section class="workspace" aria-label="Consultation de démonstration">
+        <div class="mode-bar" role="group" aria-label="Source des données">
+          <span class="scenario-label">Source des données</span>
+          <button class="scenario-button" type="button" data-mode="mock" aria-pressed="true">Scénarios fictifs</button>
+          <button class="scenario-button" type="button" data-mode="live" aria-pressed="false">API locale</button>
+        </div>
         <div class="control-bar">
           <form id="patient-search" class="search-form" role="search">
             <div class="search-field">
@@ -59,6 +64,17 @@
               <button class="scenario-button" type="button" data-scenario="orthanc-unavailable" aria-pressed="false">PACS indisponible</button>
             </div>
           </div>
+        </div>
+
+        <form id="login-form" class="login-form" hidden>
+          <label>Utilisateur <input id="username" name="username" autocomplete="username" required /></label>
+          <label>Mot de passe <input id="password" name="password" type="password" autocomplete="current-password" required /></label>
+          <button class="primary-button" type="submit">Se connecter</button>
+        </form>
+        <div id="live-controls" class="live-controls" hidden>
+          <label for="encounter-select">Rencontre</label>
+          <select id="encounter-select"></select>
+          <button id="logout-button" class="scenario-button" type="button">Se déconnecter</button>
         </div>
 
         <p id="feedback" class="feedback" role="status" aria-live="polite">Chargement du scénario…</p>
@@ -104,12 +120,12 @@
                 <p class="aside-intro">Disponibilité et métadonnées de l’étude liée à cet examen.</p>
                 <div id="pacs-content"></div>
               </section>
-              <div class="data-note"><span class="note-line" aria-hidden="true"></span><strong>Source des données</strong><p>Réponses synthétiques du contrat API T02.</p></div>
+              <div class="data-note"><span class="note-line" aria-hidden="true"></span><strong>Source des données</strong><p id="data-source">Réponses synthétiques du contrat API T02.</p></div>
             </aside>
           </div>
         </div>
       </section>
-      <p class="disclaimer">Données synthétiques à usage logiciel. Cet aperçu n'est pas un outil de diagnostic et ne vérifie pas les droits d'accès.</p>
+      <p class="disclaimer">Données synthétiques à usage logiciel. Cet aperçu n'est pas un outil de diagnostic. En mode API, les droits sont vérifiés par le backend.</p>
     </main>
   </body>
 </html>
