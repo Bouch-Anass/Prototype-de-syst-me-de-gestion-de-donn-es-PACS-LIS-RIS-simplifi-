@@ -3,11 +3,14 @@
 from datetime import datetime, timezone
 import hmac
 import os
+from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,7 +18,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.errors import ACCESS_DENIED, NOT_FOUND, ApiError
-from app.db.models import AppSession, Encounter, Patient
+from app.db.models import (
+    AppSession, Encounter, ImagingStudy, Patient, RadiologyExam, RadiologyOrder,
+    UserEncounterAccess,
+)
 from app.db.session import make_session_factory, session_dependency
 from app.modules.audit.service import record_event
 from app.modules.auth.service import authenticate, current_actor, require_csrf
@@ -23,9 +29,12 @@ from app.modules.identity.service import accessible_encounters, resolve_patient
 from app.integrations.hl7.service import (
     MAX_MESSAGE_BYTES, ProfileError, build_ack, message_header, process_message, record_rejection,
 )
-from app.integrations.orthanc.client import OrthancClient, OrthancUnavailable
+from app.integrations.orthanc.client import OrthancClient, OrthancError, OrthancUnavailable
+from app.modules.imaging.service import get_availability
 from app.modules.summary.service import build_summary
-
+from app.modules.radiology.service import (
+    RadiologyError, create_order, mark_performed, save_report_draft, validate_report,
+)
 
 
 CLINICAL_IDENTITY_ROLES = {"physician", "radiologist", "lab_technician"}
@@ -34,6 +43,27 @@ CLINICAL_IDENTITY_ROLES = {"physician", "radiologist", "lab_technician"}
 class LoginBody(BaseModel):
     username: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=1, max_length=1024)
+
+
+class RadiologyOrderBody(BaseModel):
+    encounter_id: UUID
+    accession_number: str = Field(min_length=1, max_length=100)
+    requested_procedure: str = Field(min_length=1, max_length=200)
+    modality: str = Field(min_length=1, max_length=20)
+    priority: Literal["routine", "urgent"] = "routine"
+
+
+class ExamPerformedBody(BaseModel):
+    status: Literal["performed"]
+    performed_at: datetime
+
+
+class ReportDraftBody(BaseModel):
+    content: str = Field(min_length=1, max_length=10000)
+
+
+class ReportValidationBody(BaseModel):
+    validated_at: datetime
 
 
 def _timestamp(value: datetime) -> str:
@@ -206,6 +236,71 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         db.commit()
         return build_summary(session_factory, orthanc_client, actor_user_id=actor.user_id,
                              encounter_id=str(encounter_id), correlation_id=request.state.correlation_id)
+
+    def radiology_error(request: Request, actor_id: str, action: str,
+                        resource_id: str | None, exc: RadiologyError):
+        with session_factory.begin() as db:
+            record_event(db, actor_user_id=actor_id, action=action, resource_type="radiology",
+                         resource_id=resource_id, outcome="denied",
+                         correlation_id=request.state.correlation_id)
+        if exc.code == "ACCESS_DENIED":
+            raise ApiError(*ACCESS_DENIED) from exc
+        if exc.code in {"ENCOUNTER_UNKNOWN", "EXAM_UNKNOWN", "ORDER_UNKNOWN", "PATIENT_UNKNOWN"}:
+            raise ApiError(*NOT_FOUND) from exc
+        status = 409 if exc.code in {"ACCESSION_CONFLICT", "INVALID_TRANSITION"} else 422
+        raise ApiError(status, exc.code, "Opération radiologique refusée.") from exc
+
+    def radiology_actor(request: Request, db: Session):
+        actor = current_actor(db, request)
+        require_csrf(request, actor, settings.app_origin)
+        db.commit()
+        return actor
+
+    @app.post("/api/v1/radiology-orders", status_code=201)
+    def create_radiology_order(body: RadiologyOrderBody, request: Request, db: Session = Depends(get_db)):
+        actor = radiology_actor(request, db)
+        try:
+            return create_order(session_factory, actor_user_id=actor.user_id,
+                                encounter_id=str(body.encounter_id), accession_number=body.accession_number,
+                                requested_procedure=body.requested_procedure, modality=body.modality,
+                                priority=body.priority, correlation_id=request.state.correlation_id)
+        except RadiologyError as exc:
+            radiology_error(request, actor.user_id, "radiology.order.create", str(body.encounter_id), exc)
+
+    @app.patch("/api/v1/radiology-exams/{exam_id}")
+    def perform_radiology_exam(exam_id: UUID, body: ExamPerformedBody, request: Request,
+                               db: Session = Depends(get_db)):
+        actor = radiology_actor(request, db)
+        try:
+            mark_performed(session_factory, actor_user_id=actor.user_id, exam_id=str(exam_id),
+                           performed_at=body.performed_at, correlation_id=request.state.correlation_id)
+            return {"exam_id": str(exam_id), "status": "performed"}
+        except RadiologyError as exc:
+            radiology_error(request, actor.user_id, "radiology.exam.perform", str(exam_id), exc)
+
+    @app.put("/api/v1/radiology-exams/{exam_id}/report")
+    def draft_radiology_report(exam_id: UUID, body: ReportDraftBody, request: Request,
+                               db: Session = Depends(get_db)):
+        actor = radiology_actor(request, db)
+        try:
+            report_id = save_report_draft(session_factory, actor_user_id=actor.user_id,
+                                          exam_id=str(exam_id), content=body.content,
+                                          correlation_id=request.state.correlation_id)
+            return {"report_id": report_id, "status": "draft"}
+        except RadiologyError as exc:
+            radiology_error(request, actor.user_id, "radiology.report.draft", str(exam_id), exc)
+
+    @app.post("/api/v1/radiology-exams/{exam_id}/report/validate")
+    def finalize_radiology_report(exam_id: UUID, body: ReportValidationBody, request: Request,
+                                  db: Session = Depends(get_db)):
+        actor = radiology_actor(request, db)
+        try:
+            report_id = validate_report(session_factory, actor_user_id=actor.user_id,
+                                        exam_id=str(exam_id), validated_at=body.validated_at,
+                                        correlation_id=request.state.correlation_id)
+            return {"report_id": report_id, "status": "final"}
+        except RadiologyError as exc:
+            radiology_error(request, actor.user_id, "radiology.report.validate", str(exam_id), exc)
 
     return app
 

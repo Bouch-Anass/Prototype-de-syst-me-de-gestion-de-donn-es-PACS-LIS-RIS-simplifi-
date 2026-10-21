@@ -163,6 +163,31 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(result.status_code, 503)
         self.assertNotIn("DEMO-P001", result.text)
 
+    def test_ris_http_requires_csrf_and_radiologist_validation(self):
+        self.login()
+        body = {"encounter_id": ENCOUNTER_ID, "accession_number": "DEMO-ACC002",
+                "requested_procedure": "CT synthétique", "modality": "CT"}
+        self.assertEqual(self.client.post("/api/v1/radiology-orders", json=body).status_code, 403)
+        created = self.client.post("/api/v1/radiology-orders", json=body, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(self.client.post("/api/v1/radiology-orders", json=body,
+                                          headers=self.csrf_headers()).status_code, 409)
+        exam_id = created.json()["exam_id"]
+        path = f"/api/v1/radiology-exams/{exam_id}"
+        performed = {"status": "performed", "performed_at": "2026-01-15T09:40:00Z"}
+        self.assertEqual(self.client.patch(path, json=performed, headers=self.csrf_headers()).status_code, 403)
+        self.login("radiologist")
+        self.assertEqual(self.client.patch(path, json=performed, headers=self.csrf_headers()).status_code, 200)
+        draft = self.client.put(path + "/report", json={"content": "Compte rendu fictif"},
+                                headers=self.csrf_headers())
+        self.assertEqual(draft.status_code, 200)
+        final = self.client.post(path + "/report/validate",
+                                 json={"validated_at": "2026-01-15T09:55:00Z"}, headers=self.csrf_headers())
+        self.assertEqual(final.status_code, 200)
+        self.assertEqual(final.json()["report_id"], draft.json()["report_id"])
+        self.assertEqual(self.client.put(path + "/report", json={"content": "changed"},
+                                         headers=self.csrf_headers()).status_code, 409)
+
 
 
 if __name__ == "__main__":
