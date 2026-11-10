@@ -1,6 +1,34 @@
 name: pacs-lis-ris-local
 
 services:
+  app:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      APP_ORIGIN: http://127.0.0.1:8000
+    secrets:
+      - postgres_password
+      - orthanc.secret.json
+      - hl7_service_secret
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      orthanc:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - local_services
+
   postgres:
     image: postgres:17.11-bookworm
     restart: unless-stopped
@@ -50,6 +78,8 @@ services:
       - local_services
 
 secrets:
+  hl7_service_secret:
+    file: ./.secrets/hl7_service_secret.txt
   postgres_password:
     file: ./.secrets/postgres_password.txt
   orthanc.secret.json:

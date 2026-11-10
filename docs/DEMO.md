@@ -1,6 +1,26 @@
 # Démonstration locale reproductible
 
-Ce parcours utilise uniquement le patient fictif `DEMO-P001`. Il exige Python 3.12+, Docker Compose V2 et PowerShell. Les secrets restent dans `infra/.secrets/`, hors Git. Le navigateur accède au frontend et à l'API sur **la même origine** `http://127.0.0.1:8000` ; il ne reçoit jamais les identifiants Orthanc.
+Ce parcours utilise uniquement le patient fictif `DEMO-P001`. Les secrets restent dans `infra/.secrets/`, hors Git. Le navigateur accède au frontend et à l'API sur **la même origine** `http://127.0.0.1:8000` ; il ne reçoit jamais les identifiants Orthanc.
+
+## Lancement entièrement Docker sur une installation déjà préparée
+
+Depuis la racine du dépôt :
+
+```bash
+python3 scripts/init_local_env.py
+docker compose -f infra/compose.yaml up -d --build
+docker compose -f infra/compose.yaml ps
+```
+
+Attendre que `app`, `postgres` et `orthanc` soient `healthy`, puis ouvrir **http://127.0.0.1:8000/frontend/**. Choisir **API locale**, se connecter avec `demo-doctor` et rechercher `DEMO-P001`. Les mots de passe restent locaux ; sur le poste préparé, ils sont dans `infra/.secrets/demo_accounts.json`. Ce fichier n'est pas généré automatiquement sur un nouveau clone.
+
+Le [guide infrastructure](../infra/README.md) donne aussi la commande compatible avec `docker-compose` V1. Le service `app` applique les migrations mais ne crée ni comptes ni scénario. Le [compte rendu du 10 novembre](DOCKER_FIX.md) détaille la correction et les contrôles réussis. Les [suggestions de démonstration](DEMO_SUGGESTIONS.md) proposent un déroulé de présentation.
+
+## Initialisation du scénario : parcours hybride
+
+Les étapes suivantes utilisent Python 3.12+ sur l'hôte, PostgreSQL et Orthanc dans Docker, et des commandes PowerShell. Elles servent notamment à préparer les comptes et les données d'un clone vierge. Sous Linux/macOS, adapter les variables d'environnement et utiliser `.venv/bin/python`.
+
+Si `app` est déjà lancé, l'arrêter avec `docker compose -f infra/compose.yaml stop app` avant de lancer Uvicorn sur l'hôte : les deux utilisent le port `8000`. À la fin du parcours, arrêter Uvicorn, puis lancer `docker compose -f infra/compose.yaml up -d --build app` pour revenir au mode entièrement Docker.
 
 ## 1. Initialiser les services
 
@@ -9,7 +29,7 @@ Depuis la racine du clone :
 ```powershell
 py scripts/init_local_env.py
 docker compose -f infra/compose.yaml config --quiet
-docker compose -f infra/compose.yaml up -d
+docker compose -f infra/compose.yaml up -d postgres orthanc
 docker compose -f infra/compose.yaml ps
 py -m venv .venv
 .\.venv\Scripts\python -m pip install -r backend/requirements-dev.txt
@@ -91,4 +111,4 @@ Recharger la synthèse : le backend doit répondre 200, conserver les données L
 
 Pour vérifier la persistance, utiliser `docker compose -f infra/compose.yaml down`, puis `up -d` et relancer `scripts/smoke_live.py` après le retour des services. La commande normale `down` conserve les volumes. **Ne pas ajouter `--volumes`** si vous voulez garder les données.
 
-Ces étapes sont un protocole à exécuter sur un poste Docker. Elles n'ont pas été validées avec les images Docker sur le poste actuel. Un test séparé a vérifié les migrations, la concurrence, l'API et la persistance sur PostgreSQL 18 local avec faux Orthanc ; voir les [preuves](VERIFICATIONS.md).
+Le 10 novembre 2026, les trois services Docker ont été vérifiés sains et le smoke test a réussi sur les données existantes, jusqu'à l'aperçu PNG avec Orthanc réel. L'initialisation complète depuis un clone vierge, les nouvelles ingestions, les modes dégradés et la persistance après arrêt de toute la stack restent à vérifier dans ce parcours. Voir les [preuves et limites](DOCKER_FIX.md) et l'[historique des vérifications](VERIFICATIONS.md).

@@ -40,11 +40,15 @@ La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, l
 | Ce qui se visite ou se teste aujourd'hui | État |
 | --- | --- |
 | [Interface web](frontend/README.md) : mocks et mode API locale | Recherche, connexion, synthèse et aperçu PNG contrôlé ; mode API testé contre SQLite et un faux Orthanc |
-| [Backend FastAPI](backend/README.md) : session, identité, audit, laboratoire, HL7, RIS, synthèse et imagerie | Tests SQLite et PostgreSQL 18 local avec faux Orthanc ; Compose PostgreSQL 17 et Orthanc réel restent à vérifier |
-| [Environnement local](infra/README.md) : PostgreSQL et Orthanc dans Docker Compose | Configuration prête ; démarrage et persistance non vérifiés sur ce poste |
+| [Backend FastAPI](backend/README.md) : session, identité, audit, laboratoire, HL7, RIS, synthèse et imagerie | Tests SQLite et PostgreSQL 18 local ; consultation Docker PostgreSQL 17 et aperçu Orthanc réel vérifiés |
+| [Environnement local](infra/README.md) : PostgreSQL et Orthanc dans Docker Compose | Application, PostgreSQL et Orthanc sains ; consultation et aperçu vérifiés sur les données existantes |
 | [Contrats](contracts/README.md) HL7 v2.5.1, API et imagerie | Profil HL7 branché au laboratoire ; workflows RIS et rapprochement PACS internes testés |
 
 ## Démarrage rapide
+
+**Lancer l'application avec Docker :** sur une installation dont les comptes et le scénario sont déjà préparés, lancer `python3 scripts/init_local_env.py`, puis `docker compose -f infra/compose.yaml up -d --build`. Ouvrir **http://127.0.0.1:8000/frontend/** et choisir **API locale**. Le [guide infrastructure](infra/README.md) décrit aussi Compose V1 ; le [guide de démonstration](docs/DEMO.md) couvre l'initialisation d'un clone vierge.
+
+**Validation du 10 novembre 2026 :** application, PostgreSQL et Orthanc sains ; connexion, recherche, synthèse et aperçu PNG vérifiés sur les données existantes. Lire le [problème et la correction Docker](docs/DOCKER_FIX.md) et les [suggestions de présentation](docs/DEMO_SUGGESTIONS.md). Cette vérification ne clôt pas l'initialisation depuis une base vierge, les ingestions ni les mesures de performance.
 
 **Voir l'interface sans installer de dépendances :** depuis la racine du dépôt, lancez un serveur HTTP local.
 
@@ -54,7 +58,7 @@ python3 -m http.server 8000 --bind 127.0.0.1
 
 Ouvrez **http://127.0.0.1:8000/frontend/** et recherchez `DEMO-P001`. Sous Windows, remplacez `python3` par `py`. L'aperçu utilise les mocks du dépôt ; il ne demande ni PostgreSQL ni Orthanc.
 
-**Essayer le parcours API local :** suivez la [démonstration reproductible](docs/DEMO.md) pour initialiser PostgreSQL et Orthanc, ingérer les données fictives et ouvrir le mode **API locale** de l'interface. Les services Docker n'ont pas encore été validés sur ce poste.
+**Essayer le parcours API local :** suivez la [démonstration reproductible](docs/DEMO.md) pour initialiser PostgreSQL et Orthanc, ingérer les données fictives et ouvrir le mode **API locale** de l'interface.
 
 ## Architecture
 
@@ -67,15 +71,15 @@ flowchart LR
     MOD["Modalité simulée"] -. "C-STORE T07 · boucle locale testée" .-> PACS
 ```
 
-Les traits pointillés indiquent les intégrations qui restent à valider avec les services Docker. Le flux HL7 est testé sur SQLite et PostgreSQL 18 local ; le parcours Compose PostgreSQL 17 reste à vérifier. Le simulateur DICOM a été testé par C-STORE en boucle locale, et le rapprochement avec un faux Orthanc. Les pixels DICOM restent dans Orthanc dans l'architecture cible ; les données métier et les traces résident dans PostgreSQL. Le navigateur ne reçoit ni accès direct à la base ni identifiants d'administration Orthanc. L'[architecture détaillée](ARCHITECTURE.md) décrit les frontières et les modes dégradés.
+Les traits pointillés indiquent les ingestions et rapprochements restant à rejouer avec les services Docker ; la lecture d’une étude existante et son aperçu ont été vérifiés avec Orthanc réel. Le flux HL7 est testé sur SQLite et PostgreSQL 18 local ; le parcours Compose PostgreSQL 17 reste à vérifier. Le simulateur DICOM a été testé par C-STORE en boucle locale, et le rapprochement avec un faux Orthanc. Les pixels DICOM restent dans Orthanc dans l'architecture cible ; les données métier et les traces résident dans PostgreSQL. Le navigateur ne reçoit ni accès direct à la base ni identifiants d'administration Orthanc. L'[architecture détaillée](ARCHITECTURE.md) décrit les frontières et les modes dégradés.
 
 ### Stack et état réel
 
 | Couche | Technologie | Situation |
 | --- | --- | --- |
 | API | Python, FastAPI, SQLAlchemy, Alembic | T03–T08 et routes d'imagerie T10 implémentés ; tests SQLite avec doubles Orthanc |
-| Données métier | PostgreSQL 17 cible | Compose préparé ; migrations, concurrence et persistance vérifiées sur PostgreSQL 18 local |
-| PACS | Orthanc | Compose préparé ; client REST et aperçu PNG contrôlé testés avec doubles ; import réel à vérifier |
+| Données métier | PostgreSQL 17 cible | PostgreSQL 17 actif dans Docker ; consultation vérifiée. Concurrence et persistance vérifiées séparément sur PostgreSQL 18 local |
+| PACS | Orthanc | Orthanc actif dans Docker ; aperçu PNG réel vérifié sur une étude existante ; nouvelle ingestion à vérifier |
 | Interface | HTML, CSS, JavaScript | Mocks et mode API locale ; parcours navigateur réel à vérifier |
 | Échanges | HL7 v2.5.1, DICOM | HL7 testé sur SQLite ; génération DICOM et C-STORE de boucle locale testés |
 
@@ -85,7 +89,7 @@ Le [manifeste commun](data/fixtures/scenario.json) suit le patient `DEMO-P001` p
 
 ## Vérifications
 
-Les derniers contrôles documentés ont réussi : **17 tests de contrat**, **46 tests backend sur SQLite**, **1 test intégré sur PostgreSQL 18 local**, **1 test DICOM/C-STORE en boucle locale** lors du jalon T07, contrôle des liens et migrations Alembic. La concurrence et la persistance ont été vérifiées sur PostgreSQL 18 ; Compose PostgreSQL 17, Orthanc réel, navigateur et parcours Docker restent à valider. Voir les [preuves et limites](docs/VERIFICATIONS.md).
+Le bilan automatisé antérieur comprend : **17 tests de contrat**, **46 tests backend sur SQLite**, **1 test intégré sur PostgreSQL 18 local**, **1 test DICOM/C-STORE en boucle locale** lors du jalon T07, contrôle des liens et migrations Alembic. La concurrence et la persistance ont été vérifiées sur PostgreSQL 18. Le 10 novembre, la consultation Docker avec PostgreSQL 17 et l’aperçu Orthanc réel ont réussi ; le navigateur et l’initialisation complète restent à valider. Voir les [preuves et limites](docs/VERIFICATIONS.md).
 
 ```bash
 python3 scripts/check_repo.py
