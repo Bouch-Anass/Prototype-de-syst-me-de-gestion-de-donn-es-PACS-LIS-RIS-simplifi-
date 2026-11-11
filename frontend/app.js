@@ -1,19 +1,10 @@
-const scenarios = {
-  nominal: "/contracts/examples/summary.nominal.json",
-  "missing-crp": "/contracts/examples/summary.missing-crp.json",
-  "orthanc-unavailable": "/contracts/examples/summary.orthanc-unavailable.json",
-};
-
 const $ = (selector) => document.querySelector(selector);
 const feedback = $("#feedback");
 const record = $("#record");
-const buttons = [...document.querySelectorAll("[data-scenario]")];
-const modeButtons = [...document.querySelectorAll("[data-mode]")];
-let selectedScenario = "nominal";
-let loadedSummary = null;
 let requestNumber = 0;
-let mode = "mock";
 let liveSession = false;
+let currentRoles = new Set();
+let liveSummary = null;
 let currentPreviewUrl = null;
 
 function setText(selector, value) {
@@ -94,15 +85,19 @@ function render(summary) {
   const currentReport = lab.reports[0];
   setText("#lab-meta", currentReport ? `Rapport v${currentReport.version} · ${dateTime(currentReport.reported_at)}` : "Aucun rapport");
 
-  const exam = summary.radiology.exams[0];
-  setStatus("#ris-status", exam?.report?.status === "final" ? "Validé" : "En attente", exam?.report?.status === "final" ? "good" : "warn");
+  const exams = summary.radiology.exams;
+  setStatus("#ris-status", exams.length && exams.every((exam) => exam.report?.status === "final") ? "Validé" : "En attente",
+    exams.length && exams.every((exam) => exam.report?.status === "final") ? "good" : "warn");
   const risContent = $("#ris-content");
   risContent.replaceChildren();
-  if (exam) {
+  for (const exam of exams) {
     const details = document.createElement("dl");
     details.className = "detail-list";
     details.append(
       detail("Examen", `${exam.modality} · ${exam.accession_number}`),
+      detail("Procédure", exam.requested_procedure ?? "—"),
+      detail("Priorité", exam.priority === "urgent" ? "Urgent" : "Routine"),
+      detail("État", `${exam.order_status ?? "—"} / ${exam.status ?? "—"}`),
       detail("Réalisé le", dateTime(exam.performed_at)),
       detail("Compte rendu", exam.report?.status === "final" ? `Validé le ${dateTime(exam.report.validated_at)}` : "Non validé"),
     );
@@ -121,8 +116,7 @@ function render(summary) {
   setStatus("#pacs-status", imagingLabel, available ? "good" : "warn");
   const pacsContent = $("#pacs-content");
   pacsContent.replaceChildren();
-  const study = imaging.studies[0];
-  if (study) {
+  for (const study of imaging.studies) {
     const details = document.createElement("dl");
     details.className = "detail-list";
     details.append(
@@ -131,7 +125,7 @@ function render(summary) {
       detail("Dernière synchronisation", dateTime(study.last_synced_at)),
     );
     pacsContent.append(details);
-    if (mode === "live" && available) {
+    if (study.availability_status !== "unavailable") {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "scenario-button preview-button";
@@ -145,17 +139,17 @@ function render(summary) {
           const response = await fetch(link.url, { credentials: "same-origin", cache: "no-store" });
           if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) throw new Error("preview");
           const blob = await response.blob();
-          if (thisRequest !== requestNumber || mode !== "live") return;
+          if (thisRequest !== requestNumber || !liveSession) return;
           if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
           currentPreviewUrl = URL.createObjectURL(blob);
           const image = document.createElement("img");
           image.className = "study-preview";
-          image.alt = "Aperçu synthétique non diagnostique de l’étude";
+          image.alt = "Aperçu DICOM non diagnostique de l’étude";
           image.src = currentPreviewUrl;
           pacsContent.append(image);
           button.remove();
         } catch {
-          if (thisRequest !== requestNumber || mode !== "live") return;
+          if (thisRequest !== requestNumber || !liveSession) return;
           button.disabled = false;
           button.textContent = "Réessayer l’aperçu";
           feedback.textContent = "Aperçu d’imagerie indisponible.";
@@ -164,8 +158,11 @@ function render(summary) {
       pacsContent.append(button);
     }
   }
+  $("#lab-edit").hidden = !currentRoles.has("lab_technician") || !currentReport;
+  $("#ris-edit").hidden = !currentRoles.has("radiologist");
+  $("#imaging-edit").hidden = !currentRoles.has("imaging_technician");
+  if (currentRoles.has("lab_technician") && currentReport) renderObservationEditor(currentReport.observations);
   record.hidden = false;
-  $("#data-source").textContent = mode === "live" ? "API locale avec accès par rencontre et audit." : "Réponses synthétiques du contrat API T02.";
   feedback.textContent = "";
 }
 
@@ -184,8 +181,8 @@ async function api(path, options = {}) {
 function liveError(error) {
   if (error.status === 401) {
     liveSession = false;
-    $("#login-form").hidden = false;
-    $("#live-controls").hidden = true;
+    currentRoles = new Set();
+    showLogin();
     return "Session expirée. Connectez-vous à nouveau.";
   }
   if (error.status === 403) return "Accès refusé pour cette rencontre.";
@@ -200,7 +197,8 @@ async function loadLiveSummary(encounterId) {
   feedback.textContent = "Chargement du dossier…";
   try {
     const summary = await api(`/api/v1/encounters/${encodeURIComponent(encounterId)}/summary`);
-    if (thisRequest !== requestNumber || mode !== "live") return;
+    if (thisRequest !== requestNumber || !liveSession) return;
+    liveSummary = summary;
     render(summary);
   } catch (error) {
     if (thisRequest !== requestNumber) return;
@@ -221,10 +219,10 @@ async function searchLivePatient() {
   try {
     const params = new URLSearchParams({ identifier_domain: "DEMO", identifier });
     const patients = await api(`/api/v1/patients?${params}`);
-    if (thisRequest !== requestNumber || mode !== "live") return;
+    if (thisRequest !== requestNumber || !liveSession) return;
     const patient = patients.patients[0];
     const result = await api(`/api/v1/patients/${encodeURIComponent(patient.id)}/encounters`);
-    if (thisRequest !== requestNumber || mode !== "live") return;
+    if (thisRequest !== requestNumber || !liveSession) return;
     const picker = $("#encounter-select");
     picker.replaceChildren();
     for (const encounter of result.encounters) {
@@ -244,80 +242,38 @@ async function searchLivePatient() {
   }
 }
 
-async function loadScenario() {
-  const thisRequest = ++requestNumber;
-  loadedSummary = null;
-  record.hidden = true;
-  feedback.textContent = "Chargement du scénario…";
-  try {
-    const response = await fetch(scenarios[selectedScenario], { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const summary = await response.json();
-    if (thisRequest !== requestNumber) return;
-    loadedSummary = summary;
-    searchPatient();
-  } catch {
-    if (thisRequest !== requestNumber) return;
-    loadedSummary = null;
-    feedback.textContent = "Impossible de charger les données de démonstration. Lancez le serveur depuis la racine du dépôt.";
-  }
-}
-
-function searchPatient() {
-  if (mode === "live") return searchLivePatient();
-  if (!loadedSummary) return;
-  const identifier = $("#identifier").value.trim();
-  if (identifier !== loadedSummary.patient.external_id) {
-    record.hidden = true;
-    feedback.textContent = "Aucun patient fictif ne correspond à cet identifiant exact.";
-    return;
-  }
-  render(loadedSummary);
-}
-
 $("#patient-search").addEventListener("submit", (event) => {
   event.preventDefault();
-  searchPatient();
+  searchLivePatient();
 });
 
-for (const button of buttons) {
-  button.addEventListener("click", () => {
-    selectedScenario = button.dataset.scenario;
-    for (const item of buttons) item.setAttribute("aria-pressed", String(item === button));
-    loadScenario();
-  });
+function showLogin() {
+  $("#login-form").hidden = false;
+  $("#control-bar").hidden = true;
+  $("#live-controls").hidden = true;
+  $("#role-label").textContent = "Connexion requise";
+  record.hidden = true;
 }
 
-for (const button of modeButtons) {
-  button.addEventListener("click", () => {
-    mode = button.dataset.mode;
-    ++requestNumber;
-    if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
-    currentPreviewUrl = null;
-    record.hidden = true;
-    for (const item of modeButtons) item.setAttribute("aria-pressed", String(item === button));
-    $(".scenario-group").hidden = mode === "live";
-    $("#login-form").hidden = mode !== "live" || liveSession;
-    $("#live-controls").hidden = mode !== "live" || !liveSession;
-    if (mode === "live") {
-      if (liveSession) searchLivePatient();
-      else feedback.textContent = "Connectez-vous pour lire un dossier autorisé.";
-    } else {
-      loadScenario();
-    }
-  });
+function showWorkspace(session) {
+  liveSession = true;
+  currentRoles = new Set(session.roles);
+  $("#login-form").hidden = true;
+  $("#control-bar").hidden = false;
+  $("#live-controls").hidden = false;
+  const names = { physician: "Médecin", radiologist: "Radiologue", lab_technician: "Technicien de laboratoire",
+    imaging_technician: "Technicien d’imagerie" };
+  $("#role-label").textContent = session.roles.map((role) => names[role] ?? role).join(" · ");
 }
 
 $("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   feedback.textContent = "Connexion…";
   try {
-    await api("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+    const session = await api("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: $("#username").value.trim(), password: $("#password").value }) });
     $("#password").value = "";
-    liveSession = true;
-    $("#login-form").hidden = true;
-    $("#live-controls").hidden = false;
+    showWorkspace(session);
     await searchLivePatient();
   } catch (error) {
     feedback.textContent = error.status === 401 ? "Identifiants invalides." : liveError(error);
@@ -330,15 +286,142 @@ $("#logout-button").addEventListener("click", async () => {
     await api("/api/v1/auth/logout", { method: "POST", headers: { "X-CSRF-Token": decodeURIComponent(csrf ?? "") } });
   } catch { /* Clear this screen even when the session has already expired. */ }
   liveSession = false;
+  currentRoles = new Set();
+  liveSummary = null;
   ++requestNumber;
   if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
   currentPreviewUrl = null;
-  record.hidden = true;
-  $("#login-form").hidden = false;
-  $("#live-controls").hidden = true;
+  showLogin();
   feedback.textContent = "Déconnecté.";
 });
 
 $("#encounter-select").addEventListener("change", (event) => loadLiveSummary(event.target.value));
 
-loadScenario();
+function csrfHeaders(extra = {}) {
+  const token = document.cookie.split("; ").find((item) => item.startsWith("csrf_token="))?.split("=")[1];
+  return { "X-CSRF-Token": decodeURIComponent(token ?? ""), ...extra };
+}
+
+function addObservationRow(observation = {}) {
+  const row = document.createElement("div");
+  row.className = "observation-row";
+  for (const [field, label, value, type] of [
+    ["code", "Code", observation.code ?? "", "text"],
+    ["display", "Analyse", observation.display ?? "", "text"],
+    ["value", "Valeur", observation.data_status === "available" ? observation.value_numeric ?? "" : "", "number"],
+    ["unit", "Unité", observation.unit ?? "", "text"],
+  ]) {
+    const wrapper = document.createElement("label");
+    wrapper.textContent = label;
+    const input = document.createElement("input");
+    input.dataset.field = field;
+    input.type = type;
+    input.value = value;
+    input.required = field !== "value";
+    if (field === "value") input.step = "any";
+    wrapper.append(input);
+    row.append(wrapper);
+  }
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "scenario-button";
+  remove.textContent = "Retirer";
+  remove.setAttribute("aria-label", `Retirer l’analyse ${observation.display ?? ""}`);
+  remove.addEventListener("click", () => row.remove());
+  row.append(remove);
+  $("#lab-observations").append(row);
+  return row;
+}
+
+function renderObservationEditor(observations) {
+  $("#lab-observations").replaceChildren();
+  for (const observation of observations) addObservationRow(observation);
+}
+
+$("#add-observation").addEventListener("click", () => addObservationRow().querySelector("input").focus());
+
+async function submitEdit(form, operation) {
+  const button = form.querySelector("button[type=submit]");
+  const message = $("#action-feedback");
+  button.disabled = true;
+  message.textContent = "Enregistrement…";
+  try {
+    await operation();
+    await loadLiveSummary(liveSummary.encounter.id);
+    message.textContent = "Modification enregistrée dans le dossier fictif.";
+  } catch (error) {
+    message.textContent = error.status ? `Modification refusée (${error.status}).` : "Modification impossible. Vérifiez les données et le service.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$("#lab-edit").addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitEdit(event.currentTarget, async () => {
+    const observations = [...document.querySelectorAll("#lab-observations .observation-row")].flatMap((row) => {
+      const field = (name) => row.querySelector(`[data-field="${name}"]`).value.trim();
+      if (field("value") === "") return [];
+      return [{ code: field("code"), display: field("display"), value_numeric: Number(field("value")), unit: field("unit") }];
+    });
+    if (!observations.length) throw new Error("empty-observations");
+    const orderId = liveSummary.laboratory.reports[0].lab_order_id;
+    await api(`/api/v1/lab-orders/${encodeURIComponent(orderId)}/reports`, { method: "POST",
+      headers: csrfHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ observations }) });
+  });
+});
+
+$("#ris-edit").addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitEdit(event.currentTarget, async () => {
+    const created = await api("/api/v1/radiology-orders", { method: "POST",
+      headers: csrfHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ encounter_id: liveSummary.encounter.id,
+        accession_number: $("#ris-accession").value.trim(),
+        requested_procedure: $("#ris-procedure").value.trim(),
+        modality: $("#ris-modality").value, priority: $("#ris-priority").value }) });
+    const path = `/api/v1/radiology-exams/${encodeURIComponent(created.exam_id)}`;
+    await api(path, { method: "PATCH", headers: csrfHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ status: "performed", performed_at: new Date().toISOString() }) });
+    await api(`${path}/report`, { method: "PUT", headers: csrfHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ content: $("#ris-report").value.trim() }) });
+    await api(`${path}/report/validate`, { method: "POST", headers: csrfHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ validated_at: new Date().toISOString() }) });
+  });
+});
+
+$("#imaging-edit").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const files = [...$("#dicom-file").files];
+  if (!files.length) return;
+  const button = form.querySelector("button[type=submit]");
+  const message = $("#action-feedback");
+  button.disabled = true;
+  (async () => {
+    let imported = 0;
+    const failed = [];
+    for (const file of files) {
+      message.textContent = `Import DICOM ${imported + failed.length + 1}/${files.length} : ${file.name}`;
+      if (file.size > 8 * 1024 * 1024) {
+        failed.push(`${file.name} (plus de 8 Mio)`);
+        continue;
+      }
+      try {
+        await api(`/api/v1/encounters/${encodeURIComponent(liveSummary.encounter.id)}/imaging-studies`, {
+          method: "POST", headers: csrfHeaders({ "Content-Type": "application/dicom" }), body: file });
+        imported += 1;
+      } catch (error) {
+        failed.push(`${file.name} (${error.status ?? "réseau"})`);
+      }
+    }
+    if (imported) await loadLiveSummary(liveSummary.encounter.id);
+    message.textContent = `${imported}/${files.length} fichier(s) importé(s).` + (failed.length ? ` Échecs : ${failed.join(", ")}.` : "");
+    if (!failed.length) $("#dicom-file").value = "";
+  })().finally(() => { button.disabled = false; });
+});
+
+api("/api/v1/auth/me").then((session) => {
+  showWorkspace(session);
+  searchLivePatient();
+}).catch(() => showLogin());

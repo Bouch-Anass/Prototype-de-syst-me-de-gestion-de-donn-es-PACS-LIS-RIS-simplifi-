@@ -69,7 +69,7 @@ Les messages HL7 répétés à l'identique sont des rejeux sans nouvelle version
 
 ## 4. Consulter et vérifier
 
-Ouvrir `http://127.0.0.1:8000/frontend/`, choisir **API locale**, se connecter avec `demo-doctor`, puis rechercher `DEMO-P001`. La synthèse doit montrer le rapport biologique, l'examen RIS validé et l'étude d'imagerie. Si Orthanc est disponible, **Afficher l’aperçu** charge une image PNG via une route contrôlée par la session. Cet aperçu sert uniquement à la démonstration logicielle et n'est pas diagnostique.
+Ouvrir `http://127.0.0.1:8000/frontend/`, se connecter avec `demo-doctor`, puis rechercher `DEMO-P001`. La synthèse doit montrer le rapport biologique, l'examen RIS validé et l'étude d'imagerie. Si Orthanc est disponible, **Afficher l’aperçu** charge une image PNG via une route contrôlée par la session. Cet aperçu sert uniquement à la démonstration logicielle et n'est pas diagnostique.
 
 Le contrôle automatisé du même parcours se lance dans un troisième terminal depuis la racine :
 

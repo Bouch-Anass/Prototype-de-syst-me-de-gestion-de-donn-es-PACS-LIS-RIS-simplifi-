@@ -66,7 +66,7 @@ class PostgresConcurrencyTests(unittest.TestCase):
         try:
             with engine.connect() as conn:
                 self.assertEqual(conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one(),
-                                 "0002_domains")
+                                 "0003_imaging_role")
                 self.assertEqual(conn.execute(text("SELECT count(*) FROM patient")).scalar_one(), 0,
                                  "The PostgreSQL test database must be fresh")
             factory = sessionmaker(bind=engine, expire_on_commit=False)
@@ -107,7 +107,7 @@ class PostgresConcurrencyTests(unittest.TestCase):
 
             def new_order():
                 try:
-                    return create_order(factory, actor_user_id=doctor_id, encounter_id=ENCOUNTER,
+                    return create_order(factory, actor_user_id=radiologist_id, encounter_id=ENCOUNTER,
                                         accession_number=accession, requested_procedure="CT fictif", modality="CT")
                 except RadiologyError as exc:
                     return exc.code

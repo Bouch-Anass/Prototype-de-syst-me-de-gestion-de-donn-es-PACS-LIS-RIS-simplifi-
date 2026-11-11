@@ -201,6 +201,29 @@ class OrthancClientTests(unittest.TestCase):
         self.assertTrue(all(request.get_header("Authorization").startswith("Basic ") for request in calls))
         self.assertEqual(calls[-1].get_header("Accept"), "image/png")
 
+    def test_preview_selects_highest_numbered_series(self):
+        other_series = "11111111-11111111-11111111-11111111-11111111"
+        other_instance = "22222222-22222222-22222222-22222222-22222222"
+
+        def opener(request, timeout):
+            path = request.full_url.removeprefix("http://127.0.0.1:8042")
+            if path == f"/studies/{ORTHANC_ID}":
+                body = {"ID": ORTHANC_ID, "Series": [other_series, SERIES_ID]}
+            elif path == f"/series/{other_series}":
+                body = {"ID": other_series, "MainDicomTags": {"SeriesNumber": "2"},
+                        "Instances": [other_instance]}
+            elif path == f"/series/{SERIES_ID}":
+                body = {"ID": SERIES_ID, "MainDicomTags": {"SeriesNumber": "1"},
+                        "Instances": [INSTANCE_ID]}
+            elif path == f"/instances/{other_instance}/preview":
+                return io.BytesIO(b"\x89PNG\r\n\x1a\nnew-ct")
+            else:
+                self.fail(f"Unexpected path: {path}")
+            return io.BytesIO(json.dumps(body).encode())
+
+        client = OrthancClient("http://127.0.0.1:8042", "demo", "private-password", opener=opener)
+        self.assertEqual(client.get_preview(ORTHANC_ID, 500), b"\x89PNG\r\n\x1a\nnew-ct")
+
     def test_query_metadata_counts_and_private_authentication(self):
         calls = []
 
@@ -212,11 +235,13 @@ class OrthancClientTests(unittest.TestCase):
             elif path == f"/studies/{ORTHANC_ID}":
                 result = {"ID": ORTHANC_ID, "MainDicomTags": {"StudyInstanceUID": UID,
                           "AccessionNumber": "DEMO-ACC001"},
-                          "PatientMainDicomTags": {"PatientID": "DEMO-P001", "IssuerOfPatientID": "DEMO"},
+                          "PatientMainDicomTags": {"PatientID": "DEMO-P001"},
                           "Series": [SERIES_ID]}
             elif path == f"/series/{SERIES_ID}":
                 result = {"ID": SERIES_ID, "MainDicomTags": {"Modality": "CT"},
                           "Instances": [INSTANCE_ID]}
+            elif path == f"/instances/{INSTANCE_ID}/simplified-tags":
+                result = {"PatientID": "DEMO-P001", "IssuerOfPatientID": "DEMO"}
             else:
                 self.fail(f"Unexpected Orthanc path: {path}")
             return io.BytesIO(json.dumps(result).encode("utf-8"))
@@ -226,7 +251,8 @@ class OrthancClientTests(unittest.TestCase):
         self.assertEqual((study.patient_id, study.accession_number, study.modality,
                           study.series_count, study.instance_count),
                          ("DEMO-P001", "DEMO-ACC001", "CT", 1, 1))
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(study.issuer_of_patient_id, "DEMO")
+        self.assertEqual(len(calls), 4)
         self.assertEqual(json.loads(calls[0][0].data)["Query"], {"StudyInstanceUID": UID})
         self.assertTrue(all(0 < timeout <= 0.5 for _, timeout in calls))
         self.assertTrue(all(request.get_header("Authorization").startswith("Basic ") for request, _ in calls))

@@ -37,7 +37,6 @@ services:
       - orthanc.secret.json
     ports:
       - "127.0.0.1:8042:8042"
-      - "127.0.0.1:4242:4242"
     volumes:
       - orthanc_data:/var/lib/orthanc/db
     healthcheck:
@@ -49,11 +48,49 @@ services:
     networks:
       - local_services
 
+  app:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.app
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    environment:
+      APP_ENV: development
+      APP_ORIGIN: http://127.0.0.1:8000
+      ORTHANC_BASE_URL: http://orthanc:8042
+      ORTHANC_TIMEOUT_MS: "2000"
+    secrets:
+      - postgres_password
+      - orthanc.secret.json
+      - hl7_service_secret
+      - demo_accounts
+    volumes:
+      - ../data/generated:/app/data/generated
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      orthanc:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    networks:
+      - local_services
+
 secrets:
   postgres_password:
     file: ./.secrets/postgres_password.txt
   orthanc.secret.json:
     file: ./.secrets/orthanc.secret.json
+  hl7_service_secret:
+    file: ./.secrets/hl7_service_secret.txt
+  demo_accounts:
+    file: ./.secrets/demo_accounts.json
 
 volumes:
   postgres_data:

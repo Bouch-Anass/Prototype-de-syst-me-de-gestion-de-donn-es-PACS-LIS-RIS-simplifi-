@@ -5,17 +5,22 @@
 | Méthode et chemin | Fonction | Accès minimal |
 |---|---|---|
 | `POST /api/v1/auth/login` | Ouvrir une session | Identifiants valides ; protection contre les tentatives répétées |
+| `GET /api/v1/auth/me` | Restaurer le rôle de la session active | Session valide |
 | `GET /api/v1/patients?identifier=...` | Recherche par identifiant | Utilisateur autorisé, contexte contrôlé |
 | `GET /api/v1/patients/{id}/encounters` | Rencontres du patient | Accès autorisé à ce patient |
-| `GET /api/v1/encounters/{id}/summary` | Dossier agrégé | Médecin ou radiologue autorisé |
+| `GET /api/v1/encounters/{id}/summary` | Dossier agrégé | Un des quatre rôles cliniques et accès à la rencontre |
 | `GET /api/v1/imaging-studies/{id}` | Métadonnées d'une étude | Accès clinique à la rencontre liée |
 | `GET /api/v1/imaging-studies/{id}/viewer-link` | Accès contrôlé à l'affichage | Même contrôle que les métadonnées |
+| `POST /api/v1/lab-orders/{id}/reports` | Nouvelle version du résultat biologique | Technicien de laboratoire et accès à la rencontre |
+| `POST /api/v1/encounters/{id}/imaging-studies` | Import d'une instance DICOM synthétique | Technicien d'imagerie et accès à la rencontre |
 | `POST /internal/hl7/messages` | Transport HTTP de test, si retenu | Compte de service ; réseau interne uniquement |
 | `GET /health/ready` | État prêt/non prêt du service métier | Réponse technique minimale |
 
+Le formulaire biologique accepte 1 à 200 observations numériques dans une nouvelle version du rapport. CRP et glucose gardent les codes et unités du manifeste ; les analyses supplémentaires ont un code local `DEMO`, un libellé et une unité fournis par le technicien. Les codes dupliqués dans une même version sont refusés. Le profil d'entrée HL7 demeure limité aux analyses du manifeste. Le navigateur envoie les DICOM sélectionnés un par un à la route d'import existante, avec un bilan des réussites et des échecs ; chaque instance reste limitée à 8 Mio et doit correspondre à une demande RIS autorisée.
+
 D12 fixe pour T03 une session côté serveur avec cookie HttpOnly et SameSite=Lax, expiration après 30 minutes d'inactivité et 8 heures au maximum ; `Secure` est activé sous `APP_ENV=production` avec origine HTTPS. Le login vérifie l'origine ; les mutations authentifiées utilisent l'origine et `X-CSRF-Token`. Ces mécanismes sont implémentés dans la première tranche T03 pour login, logout, recherche et rencontres. Le rôle seul ne suffit pas à autoriser l'accès à un dossier. Le premier jalon retourne 403 pour une ressource existante hors contexte et 404 pour une ressource inexistante, sans contenu clinique dans les deux cas.
 
-La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. La route interne HL7 est implémentée pour le profil local DEMO-001. La synthèse T08 et les routes d'imagerie T10 exigent une session médecin/radiologue avec accès explicite à la rencontre.
+La recherche T03 exige `identifier_domain` et `identifier` en paramètres de requête. Elle retourne `{"patients":[...]}` avec l'identité minimale. La route des rencontres retourne `{"encounters":[...]}` avec les seules rencontres explicitement accordées à l'utilisateur. La route interne HL7 est implémentée pour le profil local DEMO-001. La synthèse T08 et les routes d'imagerie T10 exigent une session clinique et un accès explicite à la rencontre.
 
 ## Routes d'écriture RIS T06
 
@@ -53,19 +58,16 @@ La réponse présente la dernière version pertinente d'un rapport biologique. L
 
 Une date `last_synced_at` ne prouve pas la disponibilité actuelle. En cas de contrôle récent échoué, l'état retourné est `unavailable`, même si une référence d'étude connue est conservée.
 
-## Matrice minimale de droits proposée
+## Matrice des droits implémentée
 
-| Action | physician | radiologist | lab_technician | admin |
-|---|---|---|---|---|
-| Identité minimale dans un contexte autorisé | Oui | Oui | Oui | Support limité |
-| Lire les résultats biologiques | Oui | Oui | Oui | Non par défaut |
-| Valider un résultat biologique | Non | Non | Oui | Non |
-| Lire compte rendu et imagerie | Oui | Oui | Non par défaut | Non par défaut |
-| Valider un compte rendu radiologique | Non | Oui | Non | Non |
-| Gérer utilisateurs et rôles | Non | Non | Non | Oui |
-| Audit technique global | Non | Non | Non | Oui |
+| Action | physician | radiologist | lab_technician | imaging_technician | admin |
+|---|---|---|---|---|---|
+| Lire la synthèse LIS/RIS/PACS d'une rencontre accordée | Oui | Oui | Oui | Oui | Non par défaut |
+| Créer une version de résultat LIS | Non | Non | Oui | Non | Non |
+| Créer/finaliser un examen et compte rendu RIS | Non | Oui | Non | Non | Non |
+| Importer une instance DICOM dans Orthanc et la rapprocher | Non | Non | Non | Oui | Non |
 
-Le technicien n'accède pas à la synthèse clinique complète. Une future route biologique dédiée ou une projection filtrée devra être spécifiée avant son écran. Administrer l'application ne donne pas automatiquement accès aux données cliniques.
+Toutes les écritures exigent session, origine autorisée, jeton CSRF et accès explicite à la rencontre. La route d'import vérifie les identifiants synthétiques et la correspondance avec une demande RIS avant le stockage dans Orthanc. Les routes d'administration et d'audit global ne sont pas exposées dans ce prototype. Administrer l'application ne donne pas automatiquement accès aux données cliniques.
 
 ## Erreurs
 

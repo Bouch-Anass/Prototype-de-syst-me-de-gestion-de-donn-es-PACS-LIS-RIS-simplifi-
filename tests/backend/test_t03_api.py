@@ -42,7 +42,7 @@ class T03ApiTests(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         with self.engine.begin() as conn:
             conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
-            conn.execute(text("INSERT INTO alembic_version VALUES ('0002_domains')"))
+            conn.execute(text("INSERT INTO alembic_version VALUES ('0003_imaging_role')"))
         self.factory = sessionmaker(bind=self.engine, expire_on_commit=False)
         seed_demo(self.factory)
         with self.factory.begin() as db:

@@ -69,3 +69,35 @@ Un cluster PostgreSQL 18.1 temporaire, lié à `127.0.0.1:55432`, a été initia
 Après un arrêt/redémarrage du cluster local, les compteurs `patient`, `lab_report` et `imaging_study` sont restés `1/1/1`. Le p95 de **30 lectures de synthèse après échauffement** était **0,058 s** sur cette configuration PostgreSQL 18 avec faux Orthanc ; il ne mesure pas le temps d'un Orthanc réel. `scripts/smoke_live.py` a réussi sur HTTP contre le backend lié à ce cluster, Orthanc étant absent : la synthèse conservait LIS/RIS et signalait l'imagerie indisponible.
 
 Docker et les navigateurs automatisables ne sont pas disponibles dans cette session. L'image PostgreSQL 17, Orthanc Docker, le navigateur, les healthchecks Compose, cinq répétitions du parcours réel et le délai d'intégration HL7 nominal restent à vérifier. La procédure de [DEMO.md](DEMO.md) sert à réaliser ces essais sur un poste Docker.
+
+## Docker Desktop — 9 novembre 2026
+
+Sur Docker Desktop 4.93.0 avec moteur 29.8.1, `docker compose -f infra/compose.yaml up -d --build` a construit l'application et démarré PostgreSQL 17.11, Orthanc 26.9.1 et FastAPI. Les trois services sont devenus `healthy` ; `GET /health/ready` a répondu `{"status":"ready"}` depuis l'hôte. `seed-demo` et `seed-radiology-demo` ont chargé le patient, la rencontre et l'examen fictifs.
+
+Les fixtures `order.oml.hl7` et `result.nominal.oru.hl7` ont reçu chacune HTTP 200 et `MSA|AA` contre l'application conteneurisée et PostgreSQL 17. Le simulateur a envoyé l'instance CT synthétique par C-STORE à Orthanc réel. `match-demo-study` puis `refresh-demo-study` ont renvoyé `availability_status: available`, avec une série et une instance.
+
+À ce stade du démarrage initial, le parcours authentifié médecin, la finalisation RIS, l'aperçu PNG dans un navigateur, la panne PACS, la persistance des volumes après redémarrage et les métriques sur ce stack n'avaient pas encore été vérifiés. Les résultats PostgreSQL 18/faux Orthanc ci-dessus ne doivent pas être confondus avec ces vérifications Docker.
+
+## Quatre rôles et données de test — 9 novembre 2026
+
+Après ajout de la migration `0003_imaging_role`, le Compose PostgreSQL 17/Orthanc/FastAPI a été reconstruit et les trois services sont devenus `healthy`. `seed-demo-accounts` a créé quatre comptes fictifs avec mots de passe aléatoires hachés et accès explicite à `DEMO-E001`. Les secrets en clair sont dans `infra/.secrets/demo_accounts.json`, ignoré par Git.
+
+`docker compose -f infra/compose.yaml run --rm app python -m unittest discover -s /app/tests/backend -q` : **48 tests réussis**. `py scripts/check_live_roles.py` : connexion des quatre rôles, lectures de LIS/RIS/PACS, refus HTTP 403 des écritures croisées et du médecin, correction LIS par le laboratoire, création/finalisation RIS par le radiologue, import DICOM et rapprochement Orthanc par l'imagerie, puis lecture de la nouvelle étude par le médecin : **tous les contrôles réussis**. Le contrôle a utilisé l'instance synthétique `data/generated/demo-002-ct.dcm` et n'a pas imprimé les mots de passe.
+
+`node --check frontend/app.js` a réussi. L'interface a été ouverte dans un navigateur sur `http://127.0.0.1:8000/frontend/` ; le passage en mode **API locale** a affiché les champs de connexion. Le parcours visuel complet après connexion reste à vérifier. L'aperçu PNG et les changements en base ont été vérifiés via HTTP ; aucune performance représentative ni persistance des volumes après redémarrage n'est revendiquée.
+
+## CT externe converti localement — 9 novembre 2026
+
+Le fichier CT fourni par l'utilisateur, `ct-lung-screening-nlst-instance.dcm` (526 502 octets), a été lu en montage Docker **lecture seule**. Il possédait des identifiants patient et cinq tags privés, mais pas l'issuer ni le StudyID du scénario. Son upload direct avec `demo-imaging` a retourné HTTP 422 `INVALID_DICOM`, avant tout stockage Orthanc.
+
+`scripts/prepare_demo_ct.py` a créé une copie DICOM locale par liste blanche de métadonnées et une image PNG de contrôle. Le PNG de cette tranche a été examiné sans texte incrusté visible ; cela ne certifie pas l'anonymisation. La copie garde 524 288 octets de pixels, possède zéro tag privé et ne contient pas les champs `InstitutionName`, `PatientBirthDate` ou `StudyDescription`. Elle reprend les identifiants du scénario `DEMO-ACC002` et une nouvelle série/SOP UID. L'upload par `demo-imaging` a retourné HTTP 201. La synthèse du médecin a ensuite montré l'étude `2.25.10102` avec **2 séries et 2 instances** dans Orthanc. L'aperçu de l'application affichait d'abord la série initiale 2×2 ; la sélection de la série au numéro le plus élevé a été ajoutée et vérifiée par un test ciblé. Après reconstruction des conteneurs, les **49 tests backend** ont réussi et l'aperçu authentifié du médecin a répondu HTTP 200 avec une image **512×512**. Les fichiers dérivés sont ignorés par Git ; la provenance exacte et les droits de réutilisation du fichier source ne sont pas documentés dans le dépôt.
+
+## Interface unifiée et saisies extensibles — 10 novembre 2026
+
+L'interface exige désormais l'authentification avant la recherche et restaure une session existante via `GET /api/v1/auth/me`. Le sélecteur « scénarios fictifs / API locale » a été retiré. Le formulaire du laboratoire accepte des analyses locales supplémentaires dans une version de rapport ; le backend limite chaque version à 200 observations et refuse les codes dupliqués. Le formulaire d'imagerie sélectionne plusieurs fichiers DICOM et les envoie un par un avec un résultat par fichier. La synthèse RIS affiche aussi la procédure demandée, la priorité et les états de la demande et de l'examen.
+
+`docker compose -f infra/compose.yaml run --rm app python -m unittest discover -s /app/tests/backend -q` : **50 tests réussis**. `node --check frontend/app.js` et `git diff --check` ont réussi. Les trois conteneurs ont redémarré en état `healthy` ; `/health/ready` et `/frontend/` ont répondu. Dans le navigateur, la page actualisée présentait uniquement le formulaire de connexion, sans dossier visible avant authentification, et le champ DICOM autorisait une sélection multiple. La saisie visuelle complète après connexion et un lot DICOM multi-fichiers réel restent à vérifier manuellement.
+
+## Retrait du badge d'en-tête — 11 novembre 2026
+
+Le badge « Données fictives » et ses styles inutilisés ont été retirés du frontend à la demande de l'équipe. Le conteneur applicatif a été reconstruit ; les trois services sont redevenus `healthy`. La réponse HTTP de `/frontend/` ne contient plus `environment-badge` et conserve le formulaire de connexion. Les données restent synthétiques et la notice de démonstration reste affichée dans l'interface. Aucun test backend supplémentaire n'était nécessaire pour cette suppression visuelle.

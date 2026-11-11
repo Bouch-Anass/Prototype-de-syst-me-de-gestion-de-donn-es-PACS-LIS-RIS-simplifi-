@@ -1,12 +1,12 @@
 <h1 align="center">🩺 PACS · LIS · RIS</h1>
 
 <p align="center">
-  <strong>Un dossier patient unifié, construit avec des données 100 % fictives.</strong><br>
+  <strong>Un dossier patient unifié avec un jeu de base fictif.</strong><br>
   Mini-projet V · Santé digitale et ingénierie des systèmes de santé · ENSAM Rabat
 </p>
 
 <p align="center">
-  <img alt="Statut : prototype T06/T07 en cours" src="https://img.shields.io/badge/status-prototype%20T06%2FT07-6647F0?style=for-the-badge">
+  <img alt="Statut : prototype local fonctionnel" src="https://img.shields.io/badge/status-local%20prototype-6647F0?style=for-the-badge">
   <img alt="Données synthétiques uniquement" src="https://img.shields.io/badge/data-synthetic%20only-008F73?style=for-the-badge">
   <a href="https://github.com/Bouch-Anass/Prototype-de-syst-me-de-gestion-de-donn-es-PACS-LIS-RIS-simplifi-/actions/workflows/check-architecture.yml">
     <img alt="État du workflow de vérification" src="https://github.com/Bouch-Anass/Prototype-de-syst-me-de-gestion-de-donn-es-PACS-LIS-RIS-simplifi-/actions/workflows/check-architecture.yml/badge.svg?branch=main">
@@ -35,26 +35,18 @@
 
 Le projet relie **biologie (LIS)**, **radiologie (RIS)** et **imagerie (PACS)** autour d'un patient et d'une rencontre. Le parcours cible part d'une demande, intègre les résultats et les études, puis compose un dossier consultable par un utilisateur autorisé.
 
-La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, le technicien de laboratoire et l'administrateur. Facturation, pharmacie, portail patient et diagnostic automatisé sont hors périmètre. Les obligations de confidentialité, notamment la loi marocaine 09-08, restent à étudier ; aucune conformité certifiée n'est revendiquée.
+La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, le technicien de laboratoire et le technicien d'imagerie. Facturation, pharmacie, portail patient et diagnostic automatisé sont hors périmètre. Les obligations de confidentialité, notamment la loi marocaine 09-08, restent à étudier ; aucune conformité certifiée n'est revendiquée.
 
 | Ce qui se visite ou se teste aujourd'hui | État |
 | --- | --- |
-| [Interface web](frontend/README.md) : mocks et mode API locale | Recherche, connexion, synthèse et aperçu PNG contrôlé ; mode API testé contre SQLite et un faux Orthanc |
-| [Backend FastAPI](backend/README.md) : session, identité, audit, laboratoire, HL7, RIS, synthèse et imagerie | Tests SQLite et PostgreSQL 18 local avec faux Orthanc ; Compose PostgreSQL 17 et Orthanc réel restent à vérifier |
-| [Environnement local](infra/README.md) : PostgreSQL et Orthanc dans Docker Compose | Configuration prête ; démarrage et persistance non vérifiés sur ce poste |
+| [Interface web](frontend/README.md) : connexion et dossier autorisé | Recherche, synthèse et formulaires propres aux rôles, avec analyses et fichiers DICOM multiples |
+| [Backend FastAPI](backend/README.md) : session, identité, audit, laboratoire, HL7, RIS, synthèse et imagerie | Démarre dans Compose avec PostgreSQL 17 ; parcours authentifié LIS/RIS/PACS et refus entre rôles vérifiés |
+| [Environnement local](infra/README.md) : PostgreSQL, Orthanc et application dans Docker Compose | Démarrage et healthchecks vérifiés ; persistance des volumes encore à mesurer |
 | [Contrats](contracts/README.md) HL7 v2.5.1, API et imagerie | Profil HL7 branché au laboratoire ; workflows RIS et rapprochement PACS internes testés |
 
 ## Démarrage rapide
 
-**Voir l'interface sans installer de dépendances :** depuis la racine du dépôt, lancez un serveur HTTP local.
-
-```bash
-python3 -m http.server 8000 --bind 127.0.0.1
-```
-
-Ouvrez **http://127.0.0.1:8000/frontend/** et recherchez `DEMO-P001`. Sous Windows, remplacez `python3` par `py`. L'aperçu utilise les mocks du dépôt ; il ne demande ni PostgreSQL ni Orthanc.
-
-**Essayer le parcours API local :** suivez la [démonstration reproductible](docs/DEMO.md) pour initialiser PostgreSQL et Orthanc, ingérer les données fictives et ouvrir le mode **API locale** de l'interface. Les services Docker n'ont pas encore été validés sur ce poste.
+**Lancer l'application :** suivez la [démonstration conteneurisée](docs/DOCKER.md) pour démarrer PostgreSQL, Orthanc et FastAPI et charger le scénario fictif. Ouvrez ensuite **http://127.0.0.1:8000/frontend/**, connectez-vous avec un compte de démonstration, puis recherchez `DEMO-P001`. Le [guide manuel](docs/DEMO.md) reste disponible si le backend tourne sur l'hôte.
 
 ## Architecture
 
@@ -63,20 +55,20 @@ flowchart LR
     WEB["Interface web<br/>HTML · CSS · JavaScript"] -->|"session · synthèse · aperçu contrôlé"| API["Backend FastAPI<br/>identité · sessions · audit"]
     API --> DB[("PostgreSQL<br/>dossier métier")]
     LIS["LIS simulé"] -->|"HL7 v2.5.1 · HTTP local"| API
-    API -. "rapprochement T07 · Orthanc réel à vérifier" .-> PACS["Orthanc<br/>études DICOM"]
-    MOD["Modalité simulée"] -. "C-STORE T07 · boucle locale testée" .-> PACS
+    API -->|"REST · rapprochement vérifié"| PACS["Orthanc<br/>études DICOM"]
+    MOD["Modalité simulée"] -->|"C-STORE vérifié"| PACS
 ```
 
-Les traits pointillés indiquent les intégrations qui restent à valider avec les services Docker. Le flux HL7 est testé sur SQLite et PostgreSQL 18 local ; le parcours Compose PostgreSQL 17 reste à vérifier. Le simulateur DICOM a été testé par C-STORE en boucle locale, et le rapprochement avec un faux Orthanc. Les pixels DICOM restent dans Orthanc dans l'architecture cible ; les données métier et les traces résident dans PostgreSQL. Le navigateur ne reçoit ni accès direct à la base ni identifiants d'administration Orthanc. L'[architecture détaillée](ARCHITECTURE.md) décrit les frontières et les modes dégradés.
+Le flux HL7, le C-STORE DICOM, l'import via l'application et le rapprochement ont été vérifiés sur le Compose PostgreSQL 17/Orthanc réel. La consultation authentifiée et les règles de rôle ont aussi été vérifiées via HTTP. La persistance après redémarrage reste à vérifier. Les pixels DICOM restent dans Orthanc ; les données métier et les traces résident dans PostgreSQL. Le navigateur ne reçoit ni accès direct à la base ni identifiants d'administration Orthanc. L'[architecture détaillée](ARCHITECTURE.md) décrit les frontières et les modes dégradés.
 
 ### Stack et état réel
 
 | Couche | Technologie | Situation |
 | --- | --- | --- |
 | API | Python, FastAPI, SQLAlchemy, Alembic | T03–T08 et routes d'imagerie T10 implémentés ; tests SQLite avec doubles Orthanc |
-| Données métier | PostgreSQL 17 cible | Compose préparé ; migrations, concurrence et persistance vérifiées sur PostgreSQL 18 local |
-| PACS | Orthanc | Compose préparé ; client REST et aperçu PNG contrôlé testés avec doubles ; import réel à vérifier |
-| Interface | HTML, CSS, JavaScript | Mocks et mode API locale ; parcours navigateur réel à vérifier |
+| Données métier | PostgreSQL 17 | Compose démarré ; migration et parcours authentifié vérifiés sur le conteneur |
+| PACS | Orthanc | Import réel d'une instance synthétique et aperçu PNG vérifiés via API |
+| Interface | HTML, CSS, JavaScript | Connexion obligatoire, session restaurée et outils d'édition selon le rôle |
 | Échanges | HL7 v2.5.1, DICOM | HL7 testé sur SQLite ; génération DICOM et C-STORE de boucle locale testés |
 
 ## Scénario synthétique
@@ -85,7 +77,7 @@ Le [manifeste commun](data/fixtures/scenario.json) suit le patient `DEMO-P001` p
 
 ## Vérifications
 
-Les derniers contrôles documentés ont réussi : **17 tests de contrat**, **46 tests backend sur SQLite**, **1 test intégré sur PostgreSQL 18 local**, **1 test DICOM/C-STORE en boucle locale** lors du jalon T07, contrôle des liens et migrations Alembic. La concurrence et la persistance ont été vérifiées sur PostgreSQL 18 ; Compose PostgreSQL 17, Orthanc réel, navigateur et parcours Docker restent à valider. Voir les [preuves et limites](docs/VERIFICATIONS.md).
+Les derniers contrôles documentés incluent **50 tests backend** réussis dans Docker, les tests de contrat précédents, puis le parcours authentifié complet de quatre rôles sur Compose PostgreSQL 17/Orthanc réel. La persistance Docker après redémarrage et les mesures de performance du stack réel restent à valider. Voir les [preuves et limites](docs/VERIFICATIONS.md).
 
 ```bash
 python3 scripts/check_repo.py
@@ -114,18 +106,18 @@ python3 -m unittest discover -s tests/modality -v
 - [x] **T01/T02 — préparation :** Compose local, contrats, profil HL7, fixtures et aperçu web.
 - [x] **T03 — première tranche :** migration, identité synthétique, sessions, accès par rencontre et audit.
 - [x] **Validation PostgreSQL 18 locale :** migration, contrôle de schéma, concurrence et persistance du cluster temporaire.
-- [ ] **Validation Compose PostgreSQL 17 :** démarrage depuis un clone et persistance des volumes Docker.
+- [ ] **Validation Compose PostgreSQL 17 :** démarrage et healthchecks réussis ; persistance des volumes Docker à vérifier.
 - [x] **T04 — service laboratoire :** demandes, résultats, valeurs manquantes, rejeux et corrections testés sur SQLite.
 - [x] **T05 — première tranche HL7 :** endpoint interne, profil local, ACK, rejeu et corrections testés sur SQLite.
 - [x] **T05 — concurrence :** rejeux HL7 simultanés testés sur PostgreSQL 18 local.
-- [ ] **T05 — validation restante :** parcours Docker PostgreSQL 17.
+- [x] **T05 — Docker PostgreSQL 17 :** demande et résultat HL7 ingérés avec ACK positif.
 - [x] **T06 — première tranche :** service interne RIS, transitions et validation réservée au radiologue testés sur SQLite.
 - [x] **T06 — routes HTTP :** création, réalisation, brouillon et validation avec session et CSRF testés sur SQLite.
 - [x] **T06 — concurrence :** accession, réalisation et validation simultanées testées sur PostgreSQL 18 local.
 - [ ] **T06 — validation restante :** parcours Docker PostgreSQL 17.
 - [x] **T07 — première tranche :** DICOM synthétique, C-STORE de boucle locale et rapprochement Orthanc interne testés.
 - [x] **T07 — concurrence :** rattachement simultané testé sur PostgreSQL 18 avec faux Orthanc.
-- [ ] **T07 — validation restante :** import Orthanc Docker et parcours PostgreSQL 17.
+- [x] **T07 — Docker PostgreSQL 17/Orthanc :** C-STORE et rapprochement d'étude vérifiés.
 - [x] **T08–T11 — première tranche :** synthèse clinique, mode API du frontend, aperçu PNG contrôlé et parcours intégré testés sur SQLite avec faux Orthanc.
 - [ ] **T08–T11 — validation restante :** performance, navigateur réel, Docker et répétitions du parcours complet.
 - [x] **T12 — procédure :** guide et script de vérification locale publiés.
@@ -140,7 +132,7 @@ Le [backlog détaillé](docs/BACKLOG.md) donne les critères d'acceptation de ch
 | [Démonstration](docs/DEMO.md) · [Backend](backend/README.md) · [Infrastructure](infra/README.md) | Installer et exécuter le parcours local |
 | [Architecture](ARCHITECTURE.md) · [Modèle de données](docs/MODELE_DONNEES.md) | Comprendre les composants et les invariants |
 | [Contrats API, HL7 et imagerie](contracts/README.md) · [Fixtures](data/README.md) | Développer les domaines sur des exemples communs |
-| [Design](DESIGN.md) · [Interface frontend](frontend/README.md) | Comprendre les modes mocks et API |
+| [Design](DESIGN.md) · [Interface frontend](frontend/README.md) · [RIS](docs/RIS_RECOMMENDATIONS.md) | Comprendre l'interface et les champs du RIS |
 | [Contribuer](CONTRIBUTING.md) · [Sécurité](SECURITY.md) · [Répartition](docs/REPARTITION_TRAVAIL.md) | Participer sans mélanger les responsabilités |
 | [Conception initiale](docs/conception/) · [Vérifications](docs/VERIFICATIONS.md) | Retrouver les six PDF et les preuves d'essai |
 

@@ -1,6 +1,8 @@
 """Routes T03 et transport HL7 local T05."""
 
 from datetime import datetime, timezone
+from io import BytesIO
+import hashlib
 import hmac
 import os
 from pathlib import Path
@@ -12,6 +14,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from pydicom import dcmread
+from pydicom.errors import InvalidDicomError
+from sqlalchemy import select
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -19,7 +24,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.core.errors import ACCESS_DENIED, NOT_FOUND, ApiError
 from app.db.models import (
-    AppSession, Encounter, ImagingStudy, Patient, RadiologyExam, RadiologyOrder,
+    AppSession, Encounter, ImagingStudy, LabOrder, LabReport, Patient, RadiologyExam, RadiologyOrder,
     UserEncounterAccess,
 )
 from app.db.session import make_session_factory, session_dependency
@@ -30,14 +35,15 @@ from app.integrations.hl7.service import (
     MAX_MESSAGE_BYTES, ProfileError, build_ack, message_header, process_message, record_rejection,
 )
 from app.integrations.orthanc.client import OrthancClient, OrthancError, OrthancUnavailable
-from app.modules.imaging.service import get_availability
+from app.modules.imaging.service import ImagingError, get_availability, match_study
+from app.modules.laboratory.service import LaboratoryError, ObservationValue, ResultCommand, ingest_result
 from app.modules.summary.service import build_summary
 from app.modules.radiology.service import (
     RadiologyError, create_order, mark_performed, save_report_draft, validate_report,
 )
 
 
-CLINICAL_IDENTITY_ROLES = {"physician", "radiologist", "lab_technician"}
+CLINICAL_IDENTITY_ROLES = {"physician", "radiologist", "lab_technician", "imaging_technician"}
 
 
 class LoginBody(BaseModel):
@@ -64,6 +70,17 @@ class ReportDraftBody(BaseModel):
 
 class ReportValidationBody(BaseModel):
     validated_at: datetime
+
+
+class LabValueBody(BaseModel):
+    code: str = Field(min_length=1, max_length=60)
+    display: str | None = Field(default=None, max_length=120)
+    value_numeric: float = Field(allow_inf_nan=False)
+    unit: str = Field(min_length=1, max_length=20)
+
+
+class LabResultBody(BaseModel):
+    observations: list[LabValueBody] = Field(min_length=1, max_length=200)
 
 
 def _timestamp(value: datetime) -> str:
@@ -115,7 +132,7 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
     @app.get("/health/ready")
     def ready(request: Request, db: Session = Depends(get_db)):
         revision = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
-        if revision != "0002_domains":
+        if revision != "0003_imaging_role":
             raise ApiError(503, "SERVICE_UNAVAILABLE", "Service métier indisponible.")
         db.execute(text("SELECT 1")).scalar_one()
         with db.begin_nested() as probe:
@@ -187,6 +204,11 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         response.delete_cookie("csrf_token", path="/")
         return {"status": "logged_out"}
 
+    @app.get("/api/v1/auth/me")
+    def current_session(request: Request, db: Session = Depends(get_db)):
+        actor = current_actor(db, request)
+        return {"user_id": actor.user_id, "username": actor.username, "roles": sorted(actor.roles)}
+
     def authorize_patient(db: Session, request: Request, patient: Patient | None, actor_id: str, roles: frozenset[str], action: str) -> list[Encounter]:
         if patient is None:
             record_event(db, actor_user_id=actor_id, action=action, resource_type="patient",
@@ -236,6 +258,43 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         db.commit()
         return build_summary(session_factory, orthanc_client, actor_user_id=actor.user_id,
                              encounter_id=str(encounter_id), correlation_id=request.state.correlation_id)
+
+    @app.post("/api/v1/lab-orders/{order_id}/reports", status_code=201)
+    def add_lab_report(order_id: UUID, body: LabResultBody, request: Request, db: Session = Depends(get_db)):
+        actor = current_actor(db, request)
+        require_csrf(request, actor, settings.app_origin)
+        order = db.get(LabOrder, str(order_id))
+        if order is None:
+            raise ApiError(*NOT_FOUND)
+        encounter = db.get(Encounter, order.encounter_id)
+        patient = db.get(Patient, encounter.patient_id) if encounter else None
+        grant = db.get(UserEncounterAccess, (actor.user_id, order.encounter_id))
+        if "lab_technician" not in actor.roles or grant is None or patient is None or not patient.is_synthetic:
+            record_event(db, actor_user_id=actor.user_id, action="lab.result.ingest",
+                         resource_type="lab_order", resource_id=order.id, outcome="denied",
+                         correlation_id=request.state.correlation_id)
+            db.commit()
+            raise ApiError(*ACCESS_DENIED)
+        previous = db.scalar(select(LabReport.id).where(LabReport.lab_order_id == order.id).limit(1))
+        command_id = str(uuid4())
+        command = ResultCommand(source=order.source_system, control_id=command_id,
+                                content_hash=hashlib.sha256(command_id.encode()).hexdigest(),
+                                patient_id=patient.id, encounter_id=encounter.id,
+                                placer_number=order.placer_number, filler_number=order.filler_number,
+                                panel_code=order.panel_code, reported_at=datetime.now(timezone.utc),
+                                observations=tuple(ObservationValue("DEMO", value.code, value.value_numeric,
+                                                                    unit=value.unit, display=value.display)
+                                                   for value in body.observations), correction=previous is not None,
+                                allow_additional=True)
+        db.commit()
+        try:
+            receipt = ingest_result(session_factory, command, request.state.correlation_id, actor.user_id)
+        except LaboratoryError as exc:
+            if exc.code == "ACCESS_DENIED":
+                raise ApiError(*ACCESS_DENIED) from exc
+            raise ApiError(409 if exc.code == "INVALID_REPORT_SEQUENCE" else 422,
+                           exc.code, "Résultat biologique refusé.") from exc
+        return {"report_id": receipt.lab_report_id, "version": receipt.version}
 
     def radiology_error(request: Request, actor_id: str, action: str,
                         resource_id: str | None, exc: RadiologyError):
@@ -302,6 +361,60 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         except RadiologyError as exc:
             radiology_error(request, actor.user_id, "radiology.report.validate", str(exam_id), exc)
 
+    @app.post("/api/v1/encounters/{encounter_id}/imaging-studies", status_code=201)
+    async def upload_synthetic_dicom(encounter_id: UUID, request: Request, db: Session = Depends(get_db)):
+        actor = current_actor(db, request)
+        require_csrf(request, actor, settings.app_origin)
+        grant = db.get(UserEncounterAccess, (actor.user_id, str(encounter_id)))
+        encounter = db.get(Encounter, str(encounter_id))
+        patient = db.get(Patient, encounter.patient_id) if encounter else None
+        if "imaging_technician" not in actor.roles or grant is None or patient is None or not patient.is_synthetic:
+            record_event(db, actor_user_id=actor.user_id, action="imaging.upload",
+                         resource_type="encounter", resource_id=str(encounter_id), outcome="denied",
+                         correlation_id=request.state.correlation_id)
+            db.commit()
+            raise ApiError(*ACCESS_DENIED)
+        if request.headers.get("content-type", "").split(";")[0].lower() != "application/dicom":
+            raise ApiError(415, "UNSUPPORTED_MEDIA_TYPE", "Fichier DICOM requis.")
+        raw = bytearray()
+        async for chunk in request.stream():
+            raw.extend(chunk)
+            if len(raw) > 8 * 1024 * 1024:
+                raise ApiError(413, "PAYLOAD_TOO_LARGE", "Fichier DICOM trop volumineux.")
+        try:
+            dataset = dcmread(BytesIO(raw), force=False)
+            patient_id = str(dataset.PatientID)
+            issuer = str(dataset.IssuerOfPatientID)
+            accession = str(dataset.AccessionNumber)
+            study_uid = str(dataset.StudyInstanceUID)
+            modality = str(dataset.Modality)
+            synthetic_name = str(dataset.PatientName)
+            study_id = str(dataset.StudyID)
+            if (not dataset.get("PixelData") or not study_uid or not accession
+                    or study_id not in {"DEMO-001", "DEMO-002"}):
+                raise ValueError("Missing DICOM image or identifiers")
+        except (InvalidDicomError, AttributeError, ValueError, KeyError, TypeError) as exc:
+            raise ApiError(422, "INVALID_DICOM", "Fichier DICOM invalide.") from exc
+        order = db.scalar(select(RadiologyOrder).where(
+            RadiologyOrder.encounter_id == str(encounter_id), RadiologyOrder.accession_number == accession))
+        exam = db.scalar(select(RadiologyExam).where(RadiologyExam.order_id == order.id)) if order else None
+        if (patient_id != patient.external_id or issuer != patient.identifier_domain
+                or synthetic_name != f"Synthetic^Demo{study_id[-3:]}"
+                or exam is None or exam.modality != modality):
+            raise ApiError(422, "DICOM_MISMATCH", "Image incompatible avec le dossier synthétique.")
+        db.commit()
+        try:
+            orthanc_client.store_instance(bytes(raw))
+            result = match_study(session_factory, orthanc_client, patient_id=patient.id,
+                                 accession_number=accession, study_instance_uid=study_uid,
+                                 modality=modality, timeout_ms=2000,
+                                 correlation_id=request.state.correlation_id, actor_user_id=actor.user_id)
+        except ImagingError as exc:
+            raise ApiError(409, exc.code, "Étude DICOM non rattachée.") from exc
+        except OrthancError as exc:
+            raise ApiError(503, exc.code, "Service d'imagerie indisponible.") from exc
+        return result
+
     def authorized_study(study_id: UUID, request: Request, db: Session, action: str):
         actor = current_actor(db, request)
         study = db.get(ImagingStudy, str(study_id))
@@ -313,7 +426,7 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
             db.commit()
             raise ApiError(*NOT_FOUND)
         grant = db.get(UserEncounterAccess, (actor.user_id, order.encounter_id))
-        if not actor.roles.intersection({"physician", "radiologist"}) or grant is None:
+        if not actor.roles.intersection(CLINICAL_IDENTITY_ROLES) or grant is None:
             record_event(db, actor_user_id=actor.user_id, action=action, resource_type="imaging_study",
                          resource_id=study.id, outcome="denied", correlation_id=request.state.correlation_id)
             db.commit()
@@ -341,7 +454,7 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         _, exam_id, _ = authorized_study(study_id, request, db, "imaging.viewer_link")
         state = get_availability(session_factory, orthanc_client, exam_id=exam_id,
                                  correlation_id=request.state.correlation_id)
-        if state["availability_status"] != "available":
+        if state["availability_status"] == "unavailable":
             raise ApiError(503, "IMAGING_UNAVAILABLE", "Imagerie temporairement indisponible.")
         return {"url": f"/api/v1/imaging-studies/{study_id}/preview"}
 
@@ -350,7 +463,7 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         _, exam_id, orthanc_id = authorized_study(study_id, request, db, "imaging.preview")
         state = get_availability(session_factory, orthanc_client, exam_id=exam_id,
                                  correlation_id=request.state.correlation_id)
-        if state["availability_status"] != "available" or not orthanc_id:
+        if state["availability_status"] == "unavailable" or not orthanc_id:
             raise ApiError(503, "IMAGING_UNAVAILABLE", "Imagerie temporairement indisponible.")
         try:
             image = orthanc_client.get_preview(orthanc_id, 500)

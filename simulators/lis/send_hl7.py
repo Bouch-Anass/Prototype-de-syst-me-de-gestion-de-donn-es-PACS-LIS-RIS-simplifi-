@@ -17,13 +17,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Send a synthetic DEMO-001 HL7 fixture")
     parser.add_argument("message", choices=MESSAGES)
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--host", choices=("127.0.0.1", "app"), default="127.0.0.1")
     args = parser.parse_args()
     secret = os.getenv("HL7_SERVICE_SECRET")
     if not secret:
         parser.error("HL7_SERVICE_SECRET must be set in the environment")
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
-    url = f"http://127.0.0.1:{args.port}/internal/hl7/messages"
+    url = f"http://{args.host}:{args.port}/internal/hl7/messages"
     request = Request(url, data=(FIXTURES / args.message).read_bytes(), method="POST",
                       headers={"Authorization": f"Bearer {secret}",
                                "Content-Type": "application/hl7-v2; charset=utf-8"})

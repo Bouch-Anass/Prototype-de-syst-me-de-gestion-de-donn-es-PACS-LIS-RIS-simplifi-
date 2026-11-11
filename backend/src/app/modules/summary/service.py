@@ -34,7 +34,7 @@ def build_summary(factory: sessionmaker[Session], client: OrthancClient, *, acto
         else:
             roles = set(db.scalars(select(UserRole.role_name).where(UserRole.user_id == actor_user_id)))
             access = db.get(UserEncounterAccess, (actor_user_id, encounter_id))
-            if access is None or not roles.intersection({"physician", "radiologist"}):
+            if access is None or not roles.intersection({"physician", "radiologist", "lab_technician", "imaging_technician"}):
                 record_event(db, actor_user_id=actor_user_id, action="encounter.summary",
                              resource_type="encounter", resource_id=encounter_id, outcome="denied",
                              correlation_id=correlation_id)

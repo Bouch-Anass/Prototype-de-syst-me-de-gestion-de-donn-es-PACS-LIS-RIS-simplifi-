@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Encounter, ImagingStudy, Patient, RadiologyExam, RadiologyOrder
+from app.db.models import Encounter, ImagingStudy, Patient, RadiologyExam, RadiologyOrder, UserEncounterAccess, UserRole
 from app.integrations.orthanc.client import OrthancClient, OrthancError, OrthancStudy
 from app.modules.audit.service import record_event
 
@@ -93,7 +93,8 @@ def _public_study(study: ImagingStudy) -> dict:
 
 def match_study(factory: sessionmaker[Session], client: OrthancClient, *, patient_id: str,
                 accession_number: str, study_instance_uid: str, modality: str,
-                timeout_ms: int = 500, correlation_id: str | None = None) -> dict:
+                timeout_ms: int = 500, correlation_id: str | None = None,
+                actor_user_id: str | None = None) -> dict:
     """Match an imported study using all four keys; never guess by patient name."""
     fixture = _scenario()
     if not all((patient_id, accession_number, study_instance_uid, modality)):
@@ -106,6 +107,11 @@ def match_study(factory: sessionmaker[Session], client: OrthancClient, *, patien
         if order is None:
             raise ImagingError("UNKNOWN_ACCESSION")
         patient = _identity(db, order)
+        if actor_user_id is not None:
+            grant = db.get(UserEncounterAccess, (actor_user_id, order.encounter_id))
+            roles = set(db.scalars(select(UserRole.role_name).where(UserRole.user_id == actor_user_id)))
+            if grant is None or "imaging_technician" not in roles:
+                raise ImagingError("ACCESS_DENIED")
         if patient.id != patient_id:
             raise ImagingError("PATIENT_MISMATCH")
         exam = db.scalar(select(RadiologyExam).where(RadiologyExam.order_id == order.id))
@@ -126,6 +132,11 @@ def match_study(factory: sessionmaker[Session], client: OrthancClient, *, patien
             if order is None:
                 raise ImagingError("UNKNOWN_ACCESSION")
             patient = _identity(db, order)
+            if actor_user_id is not None:
+                grant = db.get(UserEncounterAccess, (actor_user_id, order.encounter_id))
+                roles = set(db.scalars(select(UserRole.role_name).where(UserRole.user_id == actor_user_id)))
+                if grant is None or "imaging_technician" not in roles:
+                    raise ImagingError("ACCESS_DENIED")
             if patient.id != patient_id:
                 raise ImagingError("PATIENT_MISMATCH")
             exam = db.scalar(select(RadiologyExam).where(RadiologyExam.order_id == order.id))
@@ -153,7 +164,7 @@ def match_study(factory: sessionmaker[Session], client: OrthancClient, *, patien
             study.instance_count = remote.instance_count
             study.availability_status = _status(remote, fixture)
             study.last_synced_at = checked_at
-            record_event(db, actor_user_id=None, action="imaging.match", resource_type="imaging_study",
+            record_event(db, actor_user_id=actor_user_id, action="imaging.match", resource_type="imaging_study",
                          resource_id=study.id, outcome="replayed" if replayed else "allowed",
                          correlation_id=correlation_id or str(uuid4()))
             return {"exam_id": exam.id, "imaging_study_id": study.id,

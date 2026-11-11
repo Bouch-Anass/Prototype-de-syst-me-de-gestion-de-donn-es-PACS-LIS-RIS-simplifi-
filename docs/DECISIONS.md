@@ -14,12 +14,13 @@ Ce fichier distingue les éléments repris de la conception et les précisions p
 | D08 | HTTP interne pour le premier test HL7 ; MLLP différé | Fixé pour le premier jalon T02 | Même pipeline métier, transport interchangeable ; endpoint hors proxy public |
 | D09 | État d'imagerie daté et timeout Orthanc court | Proposition | Dégradation locale, pas de blocage de tout le dossier |
 | D10 | Échec d'audit : refus des opérations cliniques | Proposition à tester | Pas d'accès clinique silencieusement non tracé |
-| D11 | HTML/CSS/JavaScript sans framework ; conserver les mocks et ajouter un mode API sur la même origine | T09 implémenté, parcours navigateur réel à vérifier | Pas de dépendances npm ni de CORS ; mêmes composants d'affichage pour mocks et synthèse autorisée |
-| D12 | Session applicative côté serveur, cookie HttpOnly, SameSite=Lax ; 30 min d'inactivité, 8 h maximum | Première tranche T03 implémentée, testée sur SQLite ; PostgreSQL à vérifier | HTTPS en production impose Secure ; contrôle d'origine et CSRF pour les mutations authentifiées ; rôle et contexte de rencontre vérifiés côté backend |
+| D11 | HTML/CSS/JavaScript sans framework ; connexion obligatoire et API sur la même origine | Interface unifiée implémentée ; parcours visuel complet après connexion à vérifier | Pas de dépendances npm ni de CORS ; exemples JSON conservés pour les tests, sans sélecteur de scénarios dans l'interface |
+| D12 | Session applicative côté serveur, cookie HttpOnly, SameSite=Lax ; 30 min d'inactivité, 8 h maximum | Implémentée et vérifiée sur PostgreSQL 17 dans Compose | HTTPS en production impose Secure ; contrôle d'origine et CSRF pour les mutations authentifiées ; rôle et contexte de rencontre vérifiés côté backend |
 | D13 | Profil local HL7 v2.5.1 UTF-8 OML^O21 / ORU^R01, ACK original après commit et HTTP interne | Fixé pour le premier jalon T02 | Champs, cardinalités, erreurs et fixtures dans `contracts/hl7-profile.md` ; conformité générale non revendiquée |
-| D14 | Aperçu PNG Orthanc via route backend contrôlée ; pas de plugin DICOMweb pour la démonstration | Première tranche T10 implémentée avec faux Orthanc ; vrai PACS à vérifier | Session et droits contrôlés à chaque requête, PNG borné et non mis en cache ; aucun usage diagnostique |
-| D15 | Images `postgres:17.11-bookworm` et `orthancteam/orthanc:26.9.1` | Fixé pour T01, démarrage à vérifier avec Docker | Versions explicites ; mise à jour volontaire et testée, sans tag `latest` |
+| D14 | Aperçu PNG Orthanc via route backend contrôlée ; pas de plugin DICOMweb pour la démonstration | Vérifié via HTTP avec Orthanc réel ; parcours visuel complet à vérifier | Session et droits contrôlés à chaque requête, PNG borné et non mis en cache ; aucun usage diagnostique |
+| D15 | Images `postgres:17.11-bookworm` et `orthancteam/orthanc:26.9.1` | Démarrage et healthchecks vérifiés avec Docker | Versions explicites ; mise à jour volontaire et testée, sans tag `latest` |
 | D16 | Licence du dépôt et des données de démonstration | Ouvert | Aucune licence ajoutée automatiquement |
+| D17 | Permettre plusieurs observations locales par version de rapport et sélectionner plusieurs fichiers DICOM à importer séquentiellement | Implémenté ; essai visuel complet d'un lot DICOM à faire | 200 observations maximum par version, codes uniques, taille DICOM limitée à 8 Mio par fichier et contrôles de rapprochement maintenus côté serveur |
 
 ## Gestion des changements
 

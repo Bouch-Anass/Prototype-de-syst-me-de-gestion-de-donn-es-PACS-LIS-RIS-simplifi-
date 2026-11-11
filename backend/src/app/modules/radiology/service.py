@@ -74,7 +74,7 @@ def create_order(factory: sessionmaker[Session], *, actor_user_id: str, encounte
         raise RadiologyError("INVALID_INPUT")
     try:
         with factory.begin() as db:
-            _authorize(db, actor_user_id, encounter_id, {"physician", "radiologist"})
+            _authorize(db, actor_user_id, encounter_id, {"radiologist"})
             if db.scalar(select(RadiologyOrder.id).where(RadiologyOrder.accession_number == accession_number)):
                 raise RadiologyError("ACCESSION_CONFLICT")
             order = RadiologyOrder(id=str(uuid4()), encounter_id=encounter_id,
@@ -168,6 +168,8 @@ def get_encounter_exams(db: Session, encounter_id: str) -> dict:
                       .order_by(RadiologyOrder.accession_number)).all()
     return {"exams": [{"id": exam.id, "order_id": order.id,
                        "accession_number": order.accession_number, "modality": exam.modality,
+                       "requested_procedure": order.requested_procedure,
+                       "priority": order.priority, "order_status": order.status,
                        "status": exam.status, "performed_at": _iso(exam.performed_at),
                        "report": ({"id": report.id, "status": report.status,
                                    "content": report.content, "validated_at": _iso(report.validated_at)}

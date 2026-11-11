@@ -8,8 +8,8 @@
     <title>Dossier patient · Démonstration</title>
     <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="styles.css" />
-    <script type="module" src="app.js"></script>
+    <link rel="stylesheet" href="styles.css?v=2" />
+    <script type="module" src="app.js?v=2"></script>
   </head>
   <body>
     <header class="site-header">
@@ -22,7 +22,6 @@
           <span class="header-divider" aria-hidden="true"></span>
           <span>Prototype PACS · LIS · RIS</span>
         </div>
-        <span class="environment-badge"><span class="environment-dot" aria-hidden="true"></span>Données fictives</span>
       </div>
     </header>
 
@@ -35,16 +34,16 @@
           <h1 id="page-title">Dossier patient</h1>
           <p class="page-description">Laboratoire, radiologie et imagerie dans une seule vue.</p>
         </div>
-        <span class="read-only"><span class="read-only-icon" aria-hidden="true"></span>Lecture seule</span>
+        <span id="role-label" class="read-only">Connexion requise</span>
       </div>
 
-      <section class="workspace" aria-label="Consultation de démonstration">
-        <div class="mode-bar" role="group" aria-label="Source des données">
-          <span class="scenario-label">Source des données</span>
-          <button class="scenario-button" type="button" data-mode="mock" aria-pressed="true">Scénarios fictifs</button>
-          <button class="scenario-button" type="button" data-mode="live" aria-pressed="false">API locale</button>
-        </div>
-        <div class="control-bar">
+      <section class="workspace" aria-label="Dossier patient autorisé">
+        <form id="login-form" class="login-form">
+          <label>Utilisateur <input id="username" name="username" autocomplete="username" required /></label>
+          <label>Mot de passe <input id="password" name="password" type="password" autocomplete="current-password" required /></label>
+          <button class="primary-button" type="submit">Se connecter</button>
+        </form>
+        <div id="control-bar" class="control-bar" hidden>
           <form id="patient-search" class="search-form" role="search">
             <div class="search-field">
               <label for="identifier">Rechercher un patient</label>
@@ -56,28 +55,14 @@
             <button class="primary-button" type="submit">Rechercher <span aria-hidden="true">↗</span></button>
           </form>
 
-          <div class="scenario-group" role="group" aria-label="Choisir un scénario">
-            <span class="scenario-label">Scénario de test</span>
-            <div class="scenario-options">
-              <button class="scenario-button" type="button" data-scenario="nominal" aria-pressed="true">Nominal</button>
-              <button class="scenario-button" type="button" data-scenario="missing-crp" aria-pressed="false">CRP absente</button>
-              <button class="scenario-button" type="button" data-scenario="orthanc-unavailable" aria-pressed="false">PACS indisponible</button>
-            </div>
-          </div>
         </div>
-
-        <form id="login-form" class="login-form" hidden>
-          <label>Utilisateur <input id="username" name="username" autocomplete="username" required /></label>
-          <label>Mot de passe <input id="password" name="password" type="password" autocomplete="current-password" required /></label>
-          <button class="primary-button" type="submit">Se connecter</button>
-        </form>
         <div id="live-controls" class="live-controls" hidden>
           <label for="encounter-select">Rencontre</label>
           <select id="encounter-select"></select>
           <button id="logout-button" class="scenario-button" type="button">Se déconnecter</button>
         </div>
 
-        <p id="feedback" class="feedback" role="status" aria-live="polite">Chargement du scénario…</p>
+        <p id="feedback" class="feedback" role="status" aria-live="polite">Connectez-vous pour accéder au dossier.</p>
         <div id="record" hidden>
           <section class="patient-summary" aria-labelledby="patient-name">
             <div class="patient-identity">
@@ -100,6 +85,13 @@
                 <div class="table-heading" aria-hidden="true"><span>Analyse</span><span>Résultat</span></div>
                 <div id="lab-results"></div>
                 <p id="lab-meta" class="section-footnote"></p>
+                <form id="lab-edit" class="editor-form" hidden>
+                  <h4>Ajouter une version du résultat</h4>
+                  <p>Chaque envoi conserve le rapport précédent.</p>
+                  <div id="lab-observations" class="observation-list"></div>
+                  <button id="add-observation" class="scenario-button" type="button">+ Ajouter une analyse</button>
+                  <button class="primary-button" type="submit">Enregistrer le résultat</button>
+                </form>
               </section>
 
               <section class="record-section radiology-section" aria-labelledby="ris-title">
@@ -108,6 +100,17 @@
                   <span id="ris-status" class="status-pill"></span>
                 </div>
                 <div id="ris-content"></div>
+                <form id="ris-edit" class="editor-form" hidden>
+                  <h4>Créer un examen et son compte rendu</h4>
+                  <div class="editor-fields">
+                    <label>Accession <input id="ris-accession" value="DEMO-ACC002" required /></label>
+                    <label>Procédure <input id="ris-procedure" value="CT synthétique" required /></label>
+                    <label>Modalité <select id="ris-modality"><option value="CT">Scanner (CT)</option><option value="MR">IRM (MR)</option><option value="US">Échographie (US)</option><option value="CR">Radiographie (CR)</option></select></label>
+                    <label>Priorité <select id="ris-priority"><option value="routine">Routine</option><option value="urgent">Urgent</option></select></label>
+                  </div>
+                  <label>Compte rendu fictif <textarea id="ris-report" rows="3" required>Examen CT fictif réalisé. Aucun usage diagnostique.</textarea></label>
+                  <button class="primary-button" type="submit">Créer et valider</button>
+                </form>
               </section>
             </div>
 
@@ -119,13 +122,20 @@
                 </div>
                 <p class="aside-intro">Disponibilité et métadonnées de l’étude liée à cet examen.</p>
                 <div id="pacs-content"></div>
+                <form id="imaging-edit" class="editor-form" hidden>
+                  <h4>Importer des images DICOM de démonstration</h4>
+                  <label>Fichiers DICOM (.dcm) <input id="dicom-file" type="file" accept=".dcm,application/dicom" multiple required /></label>
+                  <p>Choisissez plusieurs instances d’une même étude ou de différents examens déjà créés dans le RIS. 8 Mio maximum par fichier.</p>
+                  <button class="primary-button" type="submit">Importer les fichiers dans Orthanc</button>
+                </form>
               </section>
-              <div class="data-note"><span class="note-line" aria-hidden="true"></span><strong>Source des données</strong><p id="data-source">Réponses synthétiques du contrat API T02.</p></div>
+              <div class="data-note"><span class="note-line" aria-hidden="true"></span><strong>Accès contrôlé</strong><p id="data-source">Données du dossier autorisé, servies par l’API locale.</p></div>
             </aside>
           </div>
+          <p id="action-feedback" class="action-feedback" role="status" aria-live="polite"></p>
         </div>
       </section>
-      <p class="disclaimer">Données synthétiques à usage logiciel. Cet aperçu n'est pas un outil de diagnostic. En mode API, les droits sont vérifiés par le backend.</p>
+      <p class="disclaimer">Jeu de base synthétique ; les imports DICOM locaux doivent être préparés sans identifiants réels. Cet aperçu n'est pas un outil de diagnostic. Les droits sont vérifiés par le backend.</p>
     </main>
   </body>
 </html>

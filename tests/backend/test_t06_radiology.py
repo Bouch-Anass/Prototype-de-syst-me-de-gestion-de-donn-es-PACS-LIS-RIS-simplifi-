@@ -62,7 +62,7 @@ class RadiologyTests(unittest.TestCase):
         self.engine.dispose()
 
     def order(self, **changes):
-        values = dict(actor_user_id="doctor", encounter_id=ENCOUNTER,
+        values = dict(actor_user_id="radiologist", encounter_id=ENCOUNTER,
                       accession_number="RIS-001", requested_procedure="CT synthétique",
                       modality="CT")
         values.update(changes)
@@ -112,7 +112,7 @@ class RadiologyTests(unittest.TestCase):
                 operation()
 
     def test_role_and_encounter_access_are_required(self):
-        for actor in ("outsider", "admin"):
+        for actor in ("doctor", "outsider", "admin"):
             with self.assertRaisesRegex(RadiologyError, "ACCESS_DENIED"):
                 self.order(actor_user_id=actor)
         ids = self.order()

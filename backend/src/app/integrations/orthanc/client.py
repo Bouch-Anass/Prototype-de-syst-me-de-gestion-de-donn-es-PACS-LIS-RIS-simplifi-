@@ -75,6 +75,23 @@ class OrthancClient:
         self._authorization = f"Basic {credentials}"
         self._open = opener or build_opener(_NoRedirect()).open
 
+    def store_instance(self, payload: bytes, timeout_ms: int = 5000) -> str:
+        """Import a bounded DICOM instance through Orthanc's private REST endpoint."""
+        if not payload or len(payload) > 8 * 1024 * 1024:
+            raise OrthancProtocolError("ORTHANC_BAD_INSTANCE")
+        request = Request(self.base_url + "/instances", data=payload, method="POST",
+                          headers={"Authorization": self._authorization,
+                                   "Content-Type": "application/dicom", "Accept": "application/json"})
+        try:
+            with self._open(request, timeout=timeout_ms / 1000) as response:
+                result = json.loads(response.read(8193))
+        except (HTTPError, URLError, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise OrthancUnavailable("ORTHANC_IMPORT_FAILED") from exc
+        instance_id = result.get("ID") if isinstance(result, dict) else None
+        if not isinstance(instance_id, str) or not ORTHANC_ID.fullmatch(instance_id):
+            raise OrthancProtocolError("ORTHANC_BAD_RESPONSE")
+        return instance_id
+
     def _json(self, method: str, path: str, timeout_ms: int, payload: dict | None = None) -> object:
         if not 50 <= timeout_ms <= 30_000:
             raise ValueError("timeout_ms must be between 50 and 30000")
@@ -125,15 +142,27 @@ class OrthancClient:
         deadline = monotonic() + timeout_ms / 1000
         study = self._json("GET", f"/studies/{orthanc_id}", _remaining_ms(deadline))
         series_ids = study.get("Series") if isinstance(study, dict) and study.get("ID") == orthanc_id else None
-        if (not isinstance(series_ids, list) or not series_ids or not isinstance(series_ids[0], str)
-                or not ORTHANC_ID.fullmatch(series_ids[0])):
+        if not isinstance(series_ids, list) or not series_ids or len(series_ids) > 100:
             raise OrthancProtocolError("ORTHANC_BAD_METADATA")
-        series = self._json("GET", f"/series/{series_ids[0]}", _remaining_ms(deadline))
-        instances = series.get("Instances") if isinstance(series, dict) and series.get("ID") == series_ids[0] else None
-        if (not isinstance(instances, list) or not instances or not isinstance(instances[0], str)
-                or not ORTHANC_ID.fullmatch(instances[0])):
-            raise OrthancProtocolError("ORTHANC_BAD_METADATA")
-        request = Request(self.base_url + f"/instances/{instances[0]}/preview", method="GET",
+        selected: tuple[int, int, str] | None = None
+        for index, series_id in enumerate(series_ids):
+            if not isinstance(series_id, str) or not ORTHANC_ID.fullmatch(series_id):
+                raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+            series = self._json("GET", f"/series/{series_id}", _remaining_ms(deadline))
+            instances = series.get("Instances") if isinstance(series, dict) and series.get("ID") == series_id else None
+            if (not isinstance(instances, list) or not instances or not isinstance(instances[0], str)
+                    or not ORTHANC_ID.fullmatch(instances[0])):
+                raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+            tags = series.get("MainDicomTags") or {}
+            if not isinstance(tags, dict):
+                raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+            series_number = tags.get("SeriesNumber", "0")
+            number = int(series_number) if str(series_number).isdigit() else 0
+            candidate = (number, index, instances[0])
+            if selected is None or candidate > selected:
+                selected = candidate
+        assert selected is not None
+        request = Request(self.base_url + f"/instances/{selected[2]}/preview", method="GET",
                           headers={"Authorization": self._authorization, "Accept": "image/png"})
         try:
             with self._open(request, timeout=_remaining_ms(deadline) / 1000) as response:
@@ -186,6 +215,17 @@ class OrthancClient:
         issuer = patient_tags.get("IssuerOfPatientID")
         if issuer is not None and not isinstance(issuer, str):
             raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+        if not issuer:
+            # Orthanc may retain this DICOM tag only on the instance, rather than
+            # promoting it to PatientMainDicomTags at the study level.
+            first_instance = next(iter(instance_ids))
+            instance_tags = self._json("GET", f"/instances/{first_instance}/simplified-tags",
+                                       _remaining_ms(deadline))
+            if not isinstance(instance_tags, dict) or instance_tags.get("PatientID") != patient_tags.get("PatientID"):
+                raise OrthancProtocolError("ORTHANC_BAD_METADATA")
+            issuer = instance_tags.get("IssuerOfPatientID")
+            if issuer is not None and not isinstance(issuer, str):
+                raise OrthancProtocolError("ORTHANC_BAD_METADATA")
         return OrthancStudy(
             orthanc_id=orthanc_id,
             study_instance_uid=_required_text(tags.get("StudyInstanceUID")),

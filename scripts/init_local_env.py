@@ -38,8 +38,11 @@ def main() -> None:
     hl7_created = create_once(
         SECRETS / "hl7_service_secret.txt", secrets.token_urlsafe(36) + "\n"
     )
+    accounts = {username: secrets.token_urlsafe(24) for username in
+                ("demo-doctor", "demo-lab", "demo-imaging", "demo-radiologist")}
+    accounts_created = create_once(SECRETS / "demo_accounts.json", json.dumps(accounts, indent=2) + "\n")
     print("Local secrets ready in infra/.secrets (ignored by Git).")
-    if not (postgres_created and orthanc_created and hl7_created):
+    if not (postgres_created and orthanc_created and hl7_created and accounts_created):
         print("Existing secret files were preserved.")
     print("Do not share or commit these files. See infra/README.md for startup.")
 

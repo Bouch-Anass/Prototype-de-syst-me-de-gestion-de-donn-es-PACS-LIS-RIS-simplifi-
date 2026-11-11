@@ -2,7 +2,7 @@
 
 Le service FastAPI (T03) fournit les sessions, la recherche exacte de patient, les rencontres accessibles et l'audit. Le domaine laboratoire T04 possède ses ingestions et sa projection internes. L'adaptateur HTTP HL7 T05 accepte les fixtures synthétiques OML/ORU et produit un ACK après commit. Le service RIS T06 gère les demandes, examens et comptes rendus validés avec routes HTTP protégées. T07 rapproche les études Orthanc, T08 compose la synthèse autorisée et T10 fournit les métadonnées et un aperçu PNG contrôlé.
 
-L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie. Les services métier, leurs routes de lecture et les mutations RIS sont implémentés. Aucun schéma n'est créé automatiquement lors des requêtes.
+L'entrée est `src/app/main.py`. La migration `0001_t03` crée patient, rencontre, utilisateurs, rôles, accès par rencontre, sessions et audit. `0002_domains` ajoute les tables métier laboratoire, radiologie et imagerie ; `0003_imaging_role` ajoute le rôle de technicien d'imagerie. Les routes LIS, RIS et DICOM appliquent le rôle et l'accès explicite à la rencontre. Aucun schéma n'est créé automatiquement lors des requêtes.
 
 | Emplacement | Responsabilité |
 |---|---|
@@ -34,7 +34,7 @@ $env:PYTHONPATH = 'src'
 ..\.venv\Scripts\python -m uvicorn app.main:app --app-dir src --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-`create-user` demande un mot de passe d'au moins 12 caractères dans le terminal. Aucun compte ni mot de passe par défaut n'est livré. `seed-demo` est idempotent et lit uniquement le manifeste synthétique. Le rôle seul n'accorde aucun dossier : `grant-encounter` associe explicitement l'utilisateur à la rencontre. Un administrateur technique ne peut pas lire les données cliniques par son seul rôle.
+`create-user` demande un mot de passe d'au moins 12 caractères dans le terminal. Le parcours Docker crée quatre comptes fictifs avec mots de passe aléatoires dans le fichier local ignoré par Git `infra/.secrets/demo_accounts.json` ; `seed-demo-accounts` les insère avec hachage scrypt. `seed-demo` est idempotent et lit uniquement le manifeste synthétique. Le rôle seul n'accorde aucun dossier : `grant-encounter` associe explicitement l'utilisateur à la rencontre. Un administrateur technique ne peut pas lire les données cliniques par son seul rôle.
 
 Depuis un autre terminal, `GET http://127.0.0.1:8000/health/ready` doit retourner `{"status":"ready"}`. Pour se connecter, envoyer `POST /api/v1/auth/login` avec JSON `{"username":"demo-doctor","password":"..."}` et l'en-tête `Origin: http://127.0.0.1:8000`. Conserver les cookies du même client HTTP. Le cookie `app_session` est HttpOnly, SameSite=Lax ; le cookie `csrf_token` est lisible par le client et doit être transmis dans `X-CSRF-Token` avec la même origine pour les mutations authentifiées. En production, `APP_ENV=production` impose une origine HTTPS et le drapeau Secure.
 
@@ -51,13 +51,15 @@ Depuis la racine, après installation des dépendances :
 .\.venv\Scripts\python -m unittest discover -s tests/modality -v
 ```
 
-Les tests backend utilisent SQLite en mémoire uniquement sous `APP_ENV=test`. Le moteur applicatif local exige PostgreSQL et le pilote psycopg. La migration et ses tables doivent encore être vérifiées sur un poste avec Docker ; le contrôle local SQLite ne prouve pas le comportement PostgreSQL.
+Les tests backend utilisent SQLite en mémoire uniquement sous `APP_ENV=test`. Le moteur applicatif local exige PostgreSQL et le pilote psycopg. Les migrations et les rôles ont aussi été vérifiés sur PostgreSQL 17 et Orthanc dans Docker ; voir [VERIFICATIONS.md](../docs/VERIFICATIONS.md).
 
 ## Synthèse, RIS et aperçu d'imagerie
 
-`GET /api/v1/encounters/{id}/summary` demande une session médecin/radiologue et un accès explicite à la rencontre. Il compose les résultats biologiques courants, les examens RIS et l'état daté des études. Une panne Orthanc rend un HTTP 200 avec avertissement ; une panne de base ou d'audit requis rend HTTP 503 sans dossier. La lecture est auditée avant retour clinique.
+`GET /api/v1/encounters/{id}/summary` demande l'un des quatre rôles cliniques et un accès explicite à la rencontre. Il compose les résultats biologiques courants, les examens RIS et l'état daté des études. Une panne Orthanc rend un HTTP 200 avec avertissement ; une panne de base ou d'audit requis rend HTTP 503 sans dossier. La lecture est auditée avant retour clinique. `GET /api/v1/auth/me` permet à l'interface de retrouver l'utilisateur et ses rôles après actualisation.
 
-Les routes RIS `POST /api/v1/radiology-orders`, `PATCH /api/v1/radiology-exams/{id}`, `PUT /api/v1/radiology-exams/{id}/report` et `POST /api/v1/radiology-exams/{id}/report/validate` exigent session, origine et en-tête CSRF. Le médecin ou radiologue autorisé crée une demande ; seul un radiologue autorisé peut marquer l'examen réalisé, écrire un brouillon et valider. Le rapport final est immuable dans ce schéma.
+Les routes RIS `POST /api/v1/radiology-orders`, `PATCH /api/v1/radiology-exams/{id}`, `PUT /api/v1/radiology-exams/{id}/report` et `POST /api/v1/radiology-exams/{id}/report/validate` exigent session, origine et en-tête CSRF. Le radiologue autorisé crée une demande, marque l'examen réalisé, écrit un brouillon et le valide. Le rapport final est immuable dans ce schéma.
+
+`POST /api/v1/lab-orders/{id}/reports` permet au technicien de laboratoire d'ajouter une version contenant jusqu'à 200 observations numériques ; les analyses supplémentaires utilisent un code local `DEMO`, un libellé et une unité. Les doublons de codes dans une version sont refusés. Le profil HL7 de démonstration conserve ses deux analyses attendues.
 
 `GET /api/v1/imaging-studies/{id}` retourne les métadonnées autorisées. `GET /api/v1/imaging-studies/{id}/viewer-link` et la route `/preview` contrôlent à nouveau la session, les droits de rencontre et la disponibilité PACS. La route `/preview` renvoie au plus 8 Mio de PNG, avec `Cache-Control: no-store`. L'interface ne reçoit pas de credential Orthanc. Il s'agit d'un aperçu logiciel non diagnostique, pas d'un viewer DICOM complet. La [démonstration locale](../docs/DEMO.md) décrit l'enchaînement des commandes et le script de vérification.
 
@@ -101,5 +103,5 @@ $env:ORTHANC_TIMEOUT_MS = '500'
 ..\.venv\Scripts\python -m app.cli refresh-demo-study
 ```
 
-Le premier appel lie le StudyInstanceUID à l'UUID d'examen si le PatientID, son domaine, l'accession et la modalité concordent. Le second retourne `available`, `incomplete` ou `unavailable`, `checked_at` et la date de dernière synchronisation. Une panne Orthanc conserve le rattachement existant et affiche un code d'avertissement. Ces commandes restent internes ; les routes de consultation T10 sont décrites plus haut. L'import réel dans l'image Docker, la persistance PostgreSQL et les cas concurrents doivent encore être validés sur un poste avec Docker.
+Le premier appel lie le StudyInstanceUID à l'UUID d'examen si le PatientID, son domaine, l'accession et la modalité concordent. Le second retourne `available`, `incomplete` ou `unavailable`, `checked_at` et la date de dernière synchronisation. Une panne Orthanc conserve le rattachement existant et affiche un code d'avertissement. Ces commandes restent internes ; les routes de consultation T10 sont décrites plus haut. L'import réel dans Orthanc Docker et les parcours concurrents PostgreSQL ont été vérifiés ; la persistance des volumes Docker après redémarrage reste à valider.
 

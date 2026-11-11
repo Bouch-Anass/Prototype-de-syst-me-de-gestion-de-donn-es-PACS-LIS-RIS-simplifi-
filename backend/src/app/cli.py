@@ -20,7 +20,39 @@ from app.modules.radiology.service import mark_performed, save_report_draft, val
 
 
 ROOT = Path(__file__).resolve().parents[3]
-ROLES = ("physician", "radiologist", "lab_technician", "admin")
+ROLES = ("physician", "radiologist", "lab_technician", "imaging_technician", "admin")
+DEMO_ROLES = {"demo-doctor": "physician", "demo-lab": "lab_technician",
+              "demo-imaging": "imaging_technician", "demo-radiologist": "radiologist"}
+
+
+def seed_demo_accounts(factory) -> None:
+    """Create local fictional users once; keep cleartext passwords outside Git."""
+    secret_path = Path("/run/secrets/demo_accounts")
+    if not secret_path.exists():
+        secret_path = ROOT / "infra/.secrets/demo_accounts.json"
+    credentials = json.loads(secret_path.read_text(encoding="utf-8"))
+    if set(credentials) != set(DEMO_ROLES) or any(len(value) < 12 for value in credentials.values()):
+        raise ValueError("Invalid local demo account secret")
+    encounter_id = "20000000-0000-4000-8000-000000000001"
+    with factory.begin() as db:
+        if db.get(Encounter, encounter_id) is None:
+            raise ValueError("Seed the synthetic encounter first")
+        for username, role in DEMO_ROLES.items():
+            user = db.scalar(select(AppUser).where(AppUser.username == username))
+            if user is None:
+                user = AppUser(id=str(uuid4()), username=username,
+                               password_hash=hash_password(credentials[username]),
+                               is_active=True, failed_attempts=0)
+                db.add(user)
+                db.flush()
+                db.add(UserRole(user_id=user.id, role_name=role))
+            else:
+                roles = set(db.scalars(select(UserRole.role_name).where(UserRole.user_id == user.id)))
+                if roles != {role}:
+                    raise ValueError(f"Existing demo account has unexpected role: {username}")
+            if db.get(UserEncounterAccess, (user.id, encounter_id)) is None:
+                db.add(UserEncounterAccess(user_id=user.id, encounter_id=encounter_id))
+    print("Four fictional accounts ready. Passwords are in infra/.secrets/demo_accounts.json on the host.")
 
 
 def seed_demo(factory) -> None:
@@ -146,6 +178,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Local synthetic backend setup")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("seed-demo")
+    commands.add_parser("seed-demo-accounts")
     user_cmd = commands.add_parser("create-user")
     user_cmd.add_argument("--username", required=True)
     user_cmd.add_argument("--role", required=True, choices=ROLES)
@@ -161,6 +194,8 @@ def main() -> None:
     factory = make_session_factory(Settings.from_env().database_url)
     if args.command == "seed-demo":
         seed_demo(factory)
+    elif args.command == "seed-demo-accounts":
+        seed_demo_accounts(factory)
     elif args.command == "create-user":
         create_user(factory, args.username, args.role)
     elif args.command == "grant-encounter":

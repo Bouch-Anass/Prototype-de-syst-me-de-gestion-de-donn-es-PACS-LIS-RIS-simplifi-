@@ -1,6 +1,6 @@
 # Modèle de données d'implémentation
 
-Ce modèle reprend les entités du document de conception. La migration T03 crée patient, rencontre, utilisateurs, rôles, accès, sessions et audit avec leurs premières contraintes. La migration `0002_domains` ajoute les tables des lots B et C ; le service laboratoire est implémenté, les services RIS et imagerie restent à écrire. Les UUID sont les identifiants internes ; les identifiants externes ne les remplacent pas.
+Ce modèle reprend les entités du document de conception. La migration T03 crée patient, rencontre, utilisateurs, rôles, accès, sessions et audit avec leurs premières contraintes. La migration `0002_domains` ajoute les tables des lots B et C ; `0003_imaging_role` ajoute le rôle du technicien d'imagerie. Les services laboratoire, RIS et imagerie sont implémentés. Les UUID sont les identifiants internes ; les identifiants externes ne les remplacent pas.
 
 ## Vue relationnelle principale
 
@@ -27,7 +27,7 @@ Une entité peut n'avoir aucun enfant lors de sa création. Un rapport biologiqu
 | `encounter` | id, patient_id, external_id, type, status, started_at, ended_at | Patient obligatoire ; fin non antérieure au début | A |
 | `lab_order` | id, encounter_id, placer_number, filler_number, ordered_at, status | Rencontre obligatoire ; origine des numéros explicite | B |
 | `lab_report` | id, lab_order_id, inbound_message_id, reported_at, status, version | Version positive ; unicité proposée sur demande/version | B |
-| `lab_observation` | id, lab_report_id, code, display, value_numeric, value_text, unit, reference_range, abnormal_flag, data_status | Valeur absente distincte de zéro ; code avec système explicite dans le contrat | B |
+| `lab_observation` | id, lab_report_id, coding_system, code, display, value_numeric, value_text, unit, data_status | Valeur absente distincte de zéro ; couple système/code unique par version de rapport | B |
 | `radiology_order` | id, encounter_id, accession_number, requested_procedure, priority, status | Accession unique dans le périmètre initial à source unique | C |
 | `radiology_exam` | id, order_id, modality, performed_at, status | Date requise si examen réalisé | C |
 | `radiology_report` | id, exam_id, author_user_id, content, status, validated_at | Au plus un compte rendu courant par examen ; validation datée | C |
@@ -46,7 +46,9 @@ Le compte rendu radiologique est un document courant avec états `draft/final/am
 | `app_session` | hash du jeton et du jeton CSRF, utilisateur, dates d'activité et d'expiration | Session opaque, 30 minutes d'inactivité et 8 heures maximum |
 | `audit_event` | id, actor_user_id, action, resource_type, resource_id, outcome, correlation_id, occurred_at, client_ip facultative | Acteur nullable pour un processus système identifié ; données minimales |
 
-Ces tables transversales sont livrées par la migration T03. La validation de leur comportement sur PostgreSQL reste à faire.
+Ces tables transversales sont livrées par la migration T03. Les migrations, les accès par rôle et les parcours concurrents ont été vérifiés sur PostgreSQL ; la persistance des volumes Docker après redémarrage reste à mesurer.
+
+La saisie manuelle du laboratoire accepte jusqu'à 200 observations par version de rapport, dont des codes locaux supplémentaires. Un même code ne peut apparaître qu'une fois dans une version ; une mesure corrigée crée une nouvelle version. Le profil HL7 de démonstration reste limité aux analyses attendues par le manifeste. Le multi-import DICOM n'ajoute pas une table par fichier : Orthanc stocke les instances, tandis que `imaging_study` conserve la référence de l'étude et les compteurs synchronisés.
 
 ## Invariants
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import math
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Encounter, InboundMessage, LabObservation, LabOrder, LabReport
+from app.db.models import Encounter, InboundMessage, LabObservation, LabOrder, LabReport, Patient, UserEncounterAccess, UserRole
 from app.modules.audit.service import record_event
 
 
@@ -37,6 +38,7 @@ class ObservationValue:
     value_numeric: float | None = None
     value_text: str | None = None
     unit: str | None = None
+    display: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,7 @@ class ResultCommand:
     reported_at: datetime
     observations: tuple[ObservationValue, ...]
     correction: bool = False
+    allow_additional: bool = False
 
 
 @dataclass(frozen=True)
@@ -180,10 +183,22 @@ def _validated_observations(command: ResultCommand, catalog: tuple[dict, ...]) -
     supplied: dict[tuple[str, str], ObservationValue] = {}
     if not command.observations:
         raise LaboratoryError("INVALID_OBSERVATION")
+    additions = []
     for item in command.observations:
         key = (item.coding_system, item.code)
-        if key not in expected or key in supplied or item.unit != expected[key]["unit"]:
+        if key in supplied:
             raise LaboratoryError("INVALID_OBSERVATION")
+        if key in expected:
+            if item.unit != expected[key]["unit"]:
+                raise LaboratoryError("INVALID_OBSERVATION")
+        elif (not command.allow_additional or item.coding_system != "DEMO"
+              or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,59}", item.code)
+              or not item.display or not item.display.strip() or len(item.display) > 120
+              or not item.unit or not item.unit.strip() or len(item.unit) > 40):
+            raise LaboratoryError("INVALID_OBSERVATION")
+        else:
+            additions.append({"coding_system": item.coding_system, "code": item.code,
+                              "display": item.display.strip(), "unit": item.unit.strip()})
         numeric, textual = item.value_numeric, item.value_text
         if (numeric is None) == (textual is None):
             raise LaboratoryError("INVALID_OBSERVATION")
@@ -192,11 +207,12 @@ def _validated_observations(command: ResultCommand, catalog: tuple[dict, ...]) -
         if textual is not None and (not isinstance(textual, str) or not textual.strip()):
             raise LaboratoryError("INVALID_OBSERVATION")
         supplied[key] = item
-    return [(entry, supplied.get((entry["coding_system"], entry["code"]))) for entry in catalog]
+    return [(entry, supplied.get((entry["coding_system"], entry["code"])))
+            for entry in (*catalog, *additions)]
 
 
 def ingest_result(factory: sessionmaker[Session], command: ResultCommand,
-                  correlation_id: str | None = None) -> ResultReceipt:
+                  correlation_id: str | None = None, actor_user_id: str | None = None) -> ResultReceipt:
     """Persist one complete report version, deriving missing expected observations."""
     _validate_common(command)
     catalog = _catalog(command.panel_code)
@@ -204,13 +220,19 @@ def ingest_result(factory: sessionmaker[Session], command: ResultCommand,
     with factory.begin() as db:
         _start_sqlite_transaction(db)
         _check_encounter(db, command.patient_id, command.encounter_id)
+        if actor_user_id is not None:
+            grant = db.get(UserEncounterAccess, (actor_user_id, command.encounter_id))
+            roles = set(db.scalars(select(UserRole.role_name).where(UserRole.user_id == actor_user_id)))
+            patient = db.get(Patient, command.patient_id)
+            if grant is None or "lab_technician" not in roles or patient is None or not patient.is_synthetic:
+                raise LaboratoryError("ACCESS_DENIED")
         marker, replayed = _claim(db, command.source, command.control_id, command.content_hash, "ORU_R01")
         if replayed:
             report = db.scalar(select(LabReport).where(LabReport.inbound_message_id == marker.id))
             if report is None:
                 raise LaboratoryError("MESSAGE_CONFLICT")
             if correlation_id:
-                record_event(db, actor_user_id=None, action="lab.result.ingest", resource_type="lab_report",
+                record_event(db, actor_user_id=actor_user_id, action="lab.result.ingest", resource_type="lab_report",
                              resource_id=report.id, outcome="replayed", correlation_id=correlation_id)
             return ResultReceipt(report.id, report.version, True)
         order = db.scalar(select(LabOrder).where(
@@ -239,7 +261,7 @@ def ingest_result(factory: sessionmaker[Session], command: ResultCommand,
                                   value_text=supplied.value_text if supplied else None))
         order.status = "reported"
         if correlation_id:
-            record_event(db, actor_user_id=None, action="lab.result.ingest", resource_type="lab_report",
+            record_event(db, actor_user_id=actor_user_id, action="lab.result.ingest", resource_type="lab_report",
                          resource_id=report.id, outcome="allowed", correlation_id=correlation_id)
         return ResultReceipt(report.id, version, False)
 
