@@ -1,5 +1,7 @@
 # Vérifications du pack initial
 
+**Mise à jour du 10 novembre 2026 :** la stack Docker comprend maintenant l'application, PostgreSQL 17 et Orthanc. Les trois services sont `healthy` ; le smoke test authentifié a réussi sur le dossier existant, avec laboratoire disponible, un examen RIS et aperçu PNG réel. Voir le [compte rendu Docker](DOCKER_FIX.md) pour le problème, la correction et les limites. Les sections datées ci-dessous décrivent les résultats historiques ; elles ne remplacent pas cette preuve plus récente.
+
 Contrôles réalisés le 28 septembre 2026 avec Python 3.12.14.
 
 | Vérification | Résultat |

@@ -48,6 +48,8 @@ La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, l
 
 **Lancer l'application :** suivez la [démonstration conteneurisée](docs/DOCKER.md) pour démarrer PostgreSQL, Orthanc et FastAPI et charger le scénario fictif. Ouvrez ensuite **http://127.0.0.1:8000/frontend/**, connectez-vous avec un compte de démonstration, puis recherchez `DEMO-P001`. Le [guide manuel](docs/DEMO.md) reste disponible si le backend tourne sur l'hôte.
 
+Le [compte rendu Docker](docs/DOCKER_FIX.md) retrace une vérification sur les données existantes ; les [suggestions de présentation](docs/DEMO_SUGGESTIONS.md) proposent un déroulé de démonstration.
+
 ## Architecture
 
 ```mermaid

@@ -1,6 +1,6 @@
 # Environnement local T01
 
-Le Compose [compose.yaml](compose.yaml) démarre PostgreSQL métier, Orthanc et l'application FastAPI qui sert aussi le frontend. Les images de base sont fixées à `postgres:17.11-bookworm`, `orthancteam/orthanc:26.9.1` et `python:3.12-slim`. L'application applique les migrations Alembic au démarrage, puis démarre Uvicorn.
+Le Compose [compose.yaml](compose.yaml) démarre PostgreSQL métier, Orthanc et le service `app` (API FastAPI et frontend sur la même origine). Les images de base sont fixées à `postgres:17.11-bookworm`, `orthancteam/orthanc:26.9.1` et `python:3.12-slim`. L'application lit les secrets montés dans `/run/secrets`, applique les migrations Alembic au démarrage, puis démarre Uvicorn.
 
 ## Prérequis et démarrage depuis un clone vierge
 
@@ -15,6 +15,15 @@ docker compose -f infra/compose.yaml ps
 
 Sous Linux/macOS, remplacer `py` par `python3`. Le script crée une fois les secrets aléatoires dans `infra/.secrets/`, ignoré par Git. Il ne remplace pas les secrets existants. Les identifiants sont dans ces fichiers locaux uniquement : utilisateur PostgreSQL `app`, base `pacs_lis_ris`, utilisateur Orthanc `demo`. Garder l'accès au répertoire limité au poste de développement ; les permissions Unix des fichiers sont `0600`.
 
+Ouvrir **http://127.0.0.1:8000/frontend/**, se connecter, puis rechercher `DEMO-P001`. Les comptes et données existants sont conservés ; un clone vierge doit charger le scénario selon le [guide Docker](../docs/DOCKER.md). Le service ne crée pas automatiquement de comptes.
+
+Sur un poste Linux équipé uniquement de l'ancien exécutable `docker-compose` 1.29, utiliser cette commande Bash depuis la racine (elle adapte seulement le champ de nom du projet à Compose V1) :
+
+```bash
+docker-compose -p pacs-lis-ris-local --project-directory "$PWD/infra" \
+  -f <(sed 's/^name: pacs-lis-ris-local$/version: "3.8"/' infra/compose.yaml) up -d --build
+```
+
 ## Services et contrôles
 
 | Service | Adresse locale | Persistance | Healthcheck |
@@ -24,7 +33,7 @@ Sous Linux/macOS, remplacer `py` par `python3`. Le script crée une fois les sec
 | Orthanc DICOM C-STORE | Port `4242` sur le réseau Compose uniquement, AE Title `DEMOPACS` | même volume Orthanc | couvert par l'état du service Orthanc |
 | Application et frontend | `http://127.0.0.1:8000/frontend/` | données dans PostgreSQL/Orthanc | `/health/ready` |
 
-Les ports sont liés à `127.0.0.1` et ne sont pas publiés sur le réseau du poste. Orthanc requiert l'authentification même en local. L'interface d'administration Orthanc sert seulement aux essais techniques ; le frontend applicatif futur passera par le backend. Les images DICOM et les données SQL sont séparées. Le réseau Compose est privé au projet, sans exposition de ports supplémentaire.
+Les ports sont liés à `127.0.0.1` et ne sont pas publiés sur le réseau du poste. Orthanc requiert l'authentification même en local. L'interface d'administration Orthanc sert seulement aux essais techniques ; le frontend applicatif passe par le backend. Les images DICOM et les données SQL sont séparées. Le réseau Compose est privé au projet, sans exposition de ports supplémentaire.
 
 Pour vérifier la disponibilité :
 
@@ -45,4 +54,4 @@ Les volumes nommés restent présents et sont réutilisés au prochain `up -d`. 
 
 ## Limites de la vérification
 
-Le démarrage, les healthchecks, les échanges réels et la persistance doivent être consignés après un essai Docker. Ce réseau local et ces mots de passe de démonstration ne constituent pas un déploiement clinique.
+Le 10 novembre 2026, les trois services et le parcours HTTP authentifié jusqu'à l'aperçu PNG ont été vérifiés. Les ingestions HL7 et DICOM ont également été testées sur le Compose. La persistance des volumes Docker après arrêt/redémarrage et les mesures de performance restent à vérifier. Voir les [vérifications](../docs/VERIFICATIONS.md) et le [compte rendu de mise en route](../docs/DOCKER_FIX.md). Ce réseau local et ces mots de passe de démonstration ne constituent pas un déploiement clinique.
