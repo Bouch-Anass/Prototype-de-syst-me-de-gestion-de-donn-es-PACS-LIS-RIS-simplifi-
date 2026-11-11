@@ -50,6 +50,16 @@ La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, l
 
 Le [compte rendu Docker](docs/DOCKER_FIX.md) retrace une vérification sur les données existantes ; les [suggestions de présentation](docs/DEMO_SUGGESTIONS.md) proposent un déroulé de démonstration.
 
+**Redémarrer sous Windows sans Docker, après l'installation native initiale :** double-cliquez sur [start-local.cmd](start-local.cmd), ou lancez depuis la racine :
+
+```powershell
+.\start-local.cmd
+```
+
+Le lanceur réutilise `.venv`, PostgreSQL sur le port `5432`, la base `pacs_lis_ris` et le secret `data/local/hl7_service_secret.txt`. Au premier démarrage du serveur, il demande le mot de passe PostgreSQL du compte `app`, puis le conserve chiffré pour le même utilisateur Windows sur ce PC dans `data/local/` (ignoré par Git). Il ouvre le navigateur quand l'API est prête et conserve les données existantes. Gardez la fenêtre ouverte ; `Ctrl+C` arrête le serveur. Si l'application est déjà prête, le lanceur ouvre simplement son interface. Pour saisir un nouveau mot de passe de base : `.\start-local.cmd -ResetDatabasePassword`. Orthanc doit être configuré séparément pour les aperçus DICOM.
+
+Après une mise à jour du dépôt, installez les dépendances avec `.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt`. Avec les variables de connexion de votre installation native, appliquez les migrations depuis `backend` avec `..\.venv\Scripts\python.exe -m alembic upgrade head` avant de relancer le serveur.
+
 ## Architecture
 
 ```mermaid
