@@ -4,6 +4,12 @@ const feedback = $("#feedback");
 const loginForm = $("#login-form");
 const loginFeedback = $("#login-feedback");
 const searchForm = $("#patient-search");
+const searchInput = $("#identifier");
+const patientDropdown = $("#patient-dropdown");
+const patientList = $("#patient-list");
+const listFeedback = $("#patient-list-feedback");
+const emptyPatientList = $("#patient-list-empty");
+const morePatients = $("#more-patients");
 const picker = $("#encounter-select");
 const labEditor = $("#lab-editor");
 const logoutButton = $("#logout-button");
@@ -30,6 +36,10 @@ let currentSummary = null;
 let radiologyProgress = null;
 let signedIn = false;
 let saving = false;
+let directorySession = null;
+let nextPatientOffset = 0;
+let directoryPatients = [];
+let filteringPatients = false;
 
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -64,10 +74,11 @@ function details(fields) {
 
 function setNavigationDisabled(disabled) {
   picker.disabled = disabled;
-  searchForm.querySelector("button").disabled = disabled;
-  $("#identifier").disabled = disabled;
+  searchForm.querySelector('button[type="submit"]').disabled = disabled;
+  searchInput.disabled = disabled;
   logoutButton.disabled = disabled;
   overviewButton.disabled = disabled || record.hidden;
+  if (disabled) closePatientDropdown();
   for (const button of record.querySelectorAll("button[data-view]")) button.disabled = disabled;
 }
 
@@ -95,6 +106,7 @@ function clearRecord() {
   delete record.dataset.loading;
   record.removeAttribute("aria-busy");
   currentSummary = null;
+  patientList.querySelector('[aria-current="true"]')?.removeAttribute("aria-current");
   radiologyProgress = null;
   clearPreviews();
   for (const editor of record.querySelectorAll(".editor")) {
@@ -430,11 +442,21 @@ function write(path, method, body) {
 
 function showLogin(message = "", tone = "neutral", focus = false) {
   signedIn = false;
+  directorySession?.abort();
+  directorySession = null;
+  directoryPatients = [];
+  filteringPatients = false;
+  closePatientDropdown();
+  patientList.replaceChildren();
+  tell(listFeedback);
+  emptyPatientList.hidden = true;
+  morePatients.hidden = true;
+  morePatients.disabled = false;
   currentRoles.clear();
   ++requestNumber;
   clearRecord();
   picker.replaceChildren();
-  $("#identifier").value = $("#identifier").defaultValue;
+  searchInput.value = searchInput.defaultValue;
   $("#workspace").hidden = true;
   searchForm.hidden = true;
   $("#login-context").hidden = false;
@@ -454,6 +476,8 @@ function expireSession() {
 
 function showWorkspace(session) {
   signedIn = true;
+  directorySession = new AbortController();
+  nextPatientOffset = 0;
   currentRoles = new Set(session.roles);
   $("#sign-in").hidden = true;
   $("#workspace").hidden = false;
@@ -478,6 +502,10 @@ async function loadSummary(encounterId, refresh = false) {
     if (request !== requestNumber || !signedIn) return false;
     currentSummary = summary;
     render(summary);
+    for (const option of patientList.children) {
+      if (option.dataset.patientId === summary.patient.id) option.setAttribute("aria-current", "true");
+      else option.removeAttribute("aria-current");
+    }
     tell(feedback, `Dossier de ${summary.patient.display_name} affiché.`);
     feedback.classList.add("visually-hidden");
     return true;
@@ -489,38 +517,200 @@ async function loadSummary(encounterId, refresh = false) {
   }
 }
 
-async function searchPatient() {
-  if (!signedIn || saving) return;
-  const identifier = $("#identifier").value.trim();
-  if (!identifier) {
-    tell(feedback, "Saisissez l’identifiant du patient.", "error");
-    feedback.classList.remove("visually-hidden");
-    $("#identifier").focus();
-    return;
-  }
+function beginPatientRequest(message) {
   const request = ++requestNumber;
   clearRecord();
   picker.replaceChildren();
   feedback.classList.remove("visually-hidden");
-  tell(feedback, "Recherche du patient…");
+  tell(feedback, message);
+  return request;
+}
+
+async function loadPatientEncounters(patient, request) {
+  const { encounters } = await api(`/api/v1/patients/${encodeURIComponent(patient.id)}/encounters`);
+  if (request !== requestNumber || !signedIn) return false;
+  encounters.sort((a, b) => Number(b.status === "active") - Number(a.status === "active")
+    || Date.parse(b.started_at) - Date.parse(a.started_at));
+  for (const visit of encounters) {
+    const label = [visit.started_at && visitOptionDate.format(new Date(visit.started_at)), visit.external_id].filter(Boolean).join(" ");
+    picker.add(new Option(label, visit.id));
+  }
+  if (picker.options.length) return loadSummary(picker.value);
+  tell(feedback, "Aucune prise en charge accessible pour ce patient.");
+  return false;
+}
+
+async function openPatient(patient, focusRecord = false) {
+  if (!signedIn || saving || logoutButton.disabled) return;
+  const request = beginPatientRequest("Chargement du dossier…");
+  filteringPatients = false;
+  searchInput.value = patient.external_id;
+  try {
+    const loaded = await loadPatientEncounters(patient, request);
+    if (loaded && currentSummary?.patient.id === patient.id && focusRecord) $("#patient-name").focus();
+  } catch (error) {
+    if (request !== requestNumber) return;
+    if (error.status === 401) expireSession();
+    else tell(feedback, readError(error, "Ce dossier n’est plus disponible."), "error");
+  }
+}
+
+function activePatientOption() {
+  const id = searchInput.getAttribute("aria-activedescendant");
+  return id ? document.getElementById(id) : null;
+}
+
+function highlightPatientOption(option) {
+  activePatientOption()?.setAttribute("aria-selected", "false");
+  if (option) {
+    option.setAttribute("aria-selected", "true");
+    searchInput.setAttribute("aria-activedescendant", option.id);
+  } else {
+    searchInput.removeAttribute("aria-activedescendant");
+  }
+}
+
+function closePatientDropdown() {
+  if (patientDropdown.hidden) return;
+  patientDropdown.hidden = true;
+  searchInput.setAttribute("aria-expanded", "false");
+  highlightPatientOption(null);
+}
+
+function searchText(value) {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+function renderPatientOptions(resetScroll = false) {
+  const query = filteringPatients ? searchText(searchInput.value.trim()) : "";
+  const visible = directoryPatients.filter(patient =>
+    searchText(`${patient.display_name} ${patient.external_id}`).includes(query));
+  const activeId = activePatientOption()?.id;
+  highlightPatientOption(null);
+  patientList.replaceChildren(...visible.map(patient => {
+    const option = node("li", null, "patient-option");
+    option.id = `patient-option-${patient.id}`;
+    option.dataset.patientId = patient.id;
+    option.setAttribute("role", "option");
+    option.setAttribute("aria-selected", "false");
+    if (currentSummary?.patient.id === patient.id) option.setAttribute("aria-current", "true");
+    option.append(node("span", patient.display_name), node("small", patient.external_id));
+    option.addEventListener("click", () => {
+      closePatientDropdown();
+      openPatient(patient, true);
+    });
+    return option;
+  }));
+  if (resetScroll) patientList.scrollTop = 0;
+  else if (activeId) highlightPatientOption(document.getElementById(activeId));
+  emptyPatientList.hidden = visible.length > 0 || (!directoryPatients.length && nextPatientOffset !== null);
+  emptyPatientList.textContent = directoryPatients.length ? "Aucun patient correspondant." : "Aucun patient accessible.";
+}
+
+function openPatientDropdown() {
+  if (!signedIn || searchInput.disabled || !patientDropdown.hidden) return;
+  filteringPatients = searchInput.value !== (currentSummary?.patient.external_id ?? searchInput.defaultValue);
+  patientDropdown.hidden = false;
+  searchInput.setAttribute("aria-expanded", "true");
+  renderPatientOptions(true);
+}
+
+async function loadPatientDirectory() {
+  if (!directorySession || nextPatientOffset === null || morePatients.disabled) return;
+  const { signal } = directorySession;
+  const offset = nextPatientOffset;
+  morePatients.disabled = true;
+  tell(listFeedback, "Chargement des patients…");
+  try {
+    const { patients, next_offset: nextOffset } = await api(`/api/v1/patients/available?offset=${offset}`, { signal });
+    if (signal.aborted) return;
+    directoryPatients.push(...patients);
+    nextPatientOffset = nextOffset;
+    morePatients.hidden = nextOffset === null;
+    morePatients.textContent = "Voir plus de patients";
+    tell(listFeedback);
+    renderPatientOptions();
+    return patients;
+  } catch (error) {
+    if (signal.aborted) return;
+    if (error.status === 401) expireSession();
+    else {
+      tell(listFeedback, "Impossible de charger la liste des patients.", "error");
+      morePatients.hidden = false;
+      morePatients.textContent = "Réessayer";
+    }
+  } finally {
+    if (!signal.aborted) morePatients.disabled = false;
+  }
+}
+
+morePatients.addEventListener("click", loadPatientDirectory);
+
+searchInput.addEventListener("focus", openPatientDropdown);
+searchInput.addEventListener("click", openPatientDropdown);
+searchInput.addEventListener("input", () => {
+  openPatientDropdown();
+  filteringPatients = true;
+  renderPatientOptions(true);
+});
+searchInput.addEventListener("keydown", event => {
+  if (event.isComposing) return;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    openPatientDropdown();
+    const active = activePatientOption();
+    const next = event.key === "ArrowDown" ? (active ? active.nextElementSibling : patientList.firstElementChild)
+      : (active ? active.previousElementSibling : patientList.lastElementChild);
+    if (next) {
+      highlightPatientOption(next);
+      next.scrollIntoView({ block: "nearest" });
+    }
+  } else if (event.key === "Escape" && !patientDropdown.hidden) {
+    event.preventDefault();
+    closePatientDropdown();
+  } else if (event.key === "Enter" && activePatientOption()) {
+    event.preventDefault();
+    activePatientOption().click();
+  }
+});
+
+const searchField = searchInput.closest(".search-field");
+patientList.addEventListener("mousedown", event => {
+  if (event.target.closest('[role="option"]')) event.preventDefault();
+});
+searchField.addEventListener("focusout", event => {
+  if (event.relatedTarget && !searchField.contains(event.relatedTarget)) closePatientDropdown();
+});
+document.addEventListener("pointerdown", event => {
+  if (!searchField.contains(event.target)) closePatientDropdown();
+});
+
+async function openWorkspace(session) {
+  showWorkspace(session);
+  const request = requestNumber;
+  const patients = await loadPatientDirectory();
+  if (!signedIn || request !== requestNumber) return;
+  const patient = patients?.find(item => item.external_id === searchInput.defaultValue) ?? patients?.[0];
+  if (patient) await openPatient(patient);
+  else if (!patients) await searchPatient();
+}
+
+async function searchPatient() {
+  if (!signedIn || saving || logoutButton.disabled) return;
+  const identifier = searchInput.value.trim();
+  if (!identifier) {
+    tell(feedback, "Saisissez l’identifiant du patient.", "error");
+    feedback.classList.remove("visually-hidden");
+    searchInput.focus();
+    return;
+  }
+  const request = beginPatientRequest("Recherche du patient…");
   try {
     const query = new URLSearchParams({ identifier_domain: "DEMO", identifier });
     const { patients } = await api(`/api/v1/patients?${query}`);
     if (request !== requestNumber || !signedIn) return;
     if (!patients.length) throw Object.assign(new Error("NOT_FOUND"), { status: 404 });
-    const { encounters } = await api(`/api/v1/patients/${encodeURIComponent(patients[0].id)}/encounters`);
-    if (request !== requestNumber || !signedIn) return;
-    encounters.sort((a, b) => Number(b.status === "active") - Number(a.status === "active")
-      || Date.parse(b.started_at) - Date.parse(a.started_at));
-    for (const visit of encounters) {
-      const label = [visit.started_at && visitOptionDate.format(new Date(visit.started_at)), visit.external_id].filter(Boolean).join(" ");
-      picker.add(new Option(label, visit.id));
-    }
-    if (picker.options.length) {
-      await loadSummary(picker.value);
-    } else {
-      tell(feedback, "Aucune prise en charge accessible pour ce patient.");
-    }
+    await loadPatientEncounters(patients[0], request);
   } catch (error) {
     if (request !== requestNumber) return;
     if (error.status === 401) expireSession();
@@ -550,9 +740,8 @@ loginForm.addEventListener("submit", async (event) => {
     });
     $("#password").value = "";
     setPasswordVisible(false);
-    showWorkspace(session);
-    $("#identifier").focus();
-    await searchPatient();
+    await openWorkspace(session);
+    if (currentSummary && document.activeElement === document.body) $("#patient-name").focus();
   } catch (error) {
     tell(loginFeedback, [401, 422].includes(error.status) ? "Identifiant ou mot de passe incorrect."
       : "Connexion impossible pour le moment. Réessayez dans quelques instants.", "error");
@@ -579,6 +768,15 @@ logoutButton.addEventListener("click", async () => {
 
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (filteringPatients && searchInput.value.trim() && patientList.children.length) {
+    if (patientList.children.length === 1) patientList.firstElementChild.click();
+    else {
+      searchInput.focus();
+      openPatientDropdown();
+    }
+    return;
+  }
+  closePatientDropdown();
   searchPatient();
 });
 
@@ -823,8 +1021,7 @@ $("#imaging-edit").addEventListener("submit", (event) => {
 
 try {
   const session = await api("/api/v1/auth/me");
-  showWorkspace(session);
-  await searchPatient();
+  await openWorkspace(session);
 } catch (error) {
   if (error.status === 401) showLogin();
   else showLogin("Impossible de vérifier la session. Vous pouvez réessayer de vous connecter.", "error");

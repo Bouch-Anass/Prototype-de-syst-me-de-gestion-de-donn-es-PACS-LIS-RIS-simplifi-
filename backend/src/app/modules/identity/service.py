@@ -13,6 +13,14 @@ def resolve_patient(db: Session, identifier_domain: str, external_id: str) -> Pa
     ))
 
 
+def accessible_patients(db: Session, user_id: str, limit: int, offset: int) -> list[Patient]:
+    access = select(Encounter.id).join(
+        UserEncounterAccess, UserEncounterAccess.encounter_id == Encounter.id,
+    ).where(Encounter.patient_id == Patient.id, UserEncounterAccess.user_id == user_id)
+    return list(db.scalars(select(Patient).where(Patient.is_synthetic.is_(True), access.exists())
+                           .order_by(Patient.external_id, Patient.id).offset(offset).limit(limit)))
+
+
 def accessible_encounters(db: Session, user_id: str, patient_id: str) -> list[Encounter]:
     return list(db.scalars(select(Encounter).join(
         UserEncounterAccess, UserEncounterAccess.encounter_id == Encounter.id,

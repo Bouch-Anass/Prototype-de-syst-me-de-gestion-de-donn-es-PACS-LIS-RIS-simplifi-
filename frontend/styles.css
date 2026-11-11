@@ -102,7 +102,7 @@ button:disabled { cursor: default; opacity: .62; }
 .site-header .secondary-button { min-height: 2.2rem; }
 .session-role { text-align: center; }
 .search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; min-width: 0; }
-.search-field { position: relative; }
+.search-field { position: relative; min-width: 0; }
 .search-field input {
   min-height: 2.3rem;
   height: 100%;
@@ -123,6 +123,46 @@ button:disabled { cursor: default; opacity: .62; }
 }
 
 .app-content { padding: .7rem 1.3rem 1.3rem; }
+.workspace { container-type: inline-size; }
+.patient-dropdown {
+  position: absolute;
+  z-index: 10;
+  inset-block-start: calc(100% + .3rem);
+  inset-inline: 0;
+  padding: .25rem;
+  border: 1px solid var(--border);
+  border-radius: .4rem;
+  background: var(--paper);
+  box-shadow: 0 .35rem .9rem #171b1226;
+  text-transform: none;
+}
+.patient-dropdown .feedback:not(:empty) { padding: .6rem; }
+.patient-list {
+  max-block-size: min(48svh, 22rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+.patient-list li + li { border-top: 1px dotted var(--border); }
+.patient-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .2rem .6rem;
+  padding: .5rem .6rem;
+  color: var(--ink);
+  font: 1rem/1.35 var(--mono);
+  cursor: pointer;
+}
+.patient-option small { flex: none; font-size: .9rem; }
+.patient-option:hover, .patient-option[aria-selected="true"] { background: var(--lime); }
+.patient-option[aria-current="true"] { font-weight: 500; }
+#more-patients { width: 100%; margin-top: .5rem; }
+
 .record {
   display: grid;
   flex: 1;
@@ -460,7 +500,7 @@ input::file-selector-button { margin-inline-end: .6rem; padding: .4rem .6rem; bo
 @media (width < 86rem) {
   .site-header { grid-template-columns: minmax(max-content, auto) minmax(14.5rem, 1fr) minmax(0, auto); }
 }
-@media (width < 75rem) {
+@container (width < 68rem) {
   .record {
     grid-template-columns: minmax(13.5rem, 1fr) repeat(2, minmax(0, 1.5fr));
     grid-template-rows: auto;

@@ -8,18 +8,26 @@
     <title>Dossier patient · Démonstration</title>
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="fonts/sometype-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="styles.css?v=6" />
-    <script type="module" src="app.js?v=4"></script>
+    <link rel="stylesheet" href="styles.css?v=8" />
+    <script type="module" src="app.js?v=6"></script>
   </head>
   <body>
     <div class="app-shell">
       <header class="site-header">
         <span class="brand">Dossier unifié</span>
         <form id="patient-search" class="search-form" role="search" hidden>
-          <label class="visually-hidden" for="identifier">Identifiant du patient</label>
+          <label class="visually-hidden" for="identifier">Rechercher un patient</label>
           <div class="search-field">
             <svg class="search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.3 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-            <input id="identifier" name="identifier" type="search" maxlength="100" placeholder="Identifiant du patient" autocomplete="off" spellcheck="false" value="DEMO-P001" required />
+            <input id="identifier" name="identifier" type="text" role="combobox" aria-autocomplete="list"
+                   aria-expanded="false" aria-controls="patient-list" maxlength="100" placeholder="Nom ou identifiant"
+                   autocomplete="off" spellcheck="false" value="DEMO-P001" required />
+            <div id="patient-dropdown" class="patient-dropdown" hidden>
+              <p id="patient-list-feedback" class="feedback" role="status"></p>
+              <p id="patient-list-empty" class="feedback" role="status" hidden></p>
+              <ul id="patient-list" class="patient-list" role="listbox" aria-label="Patients disponibles" tabindex="-1"></ul>
+              <button id="more-patients" class="secondary-button" type="button" hidden>Voir plus de patients</button>
+            </div>
           </div>
           <button class="secondary-button" type="submit">Rechercher</button>
         </form>
@@ -64,7 +72,7 @@
             <section class="panel patient-summary" aria-labelledby="patient-name">
               <p class="panel-rule patient-kicker">Fiche patient</p>
               <div class="patient-identity">
-                <h2 id="patient-name"></h2>
+                <h2 id="patient-name" tabindex="-1"></h2>
                 <p id="patient-details" class="patient-details"></p>
               </div>
               <div id="visit-context" class="visit-context">

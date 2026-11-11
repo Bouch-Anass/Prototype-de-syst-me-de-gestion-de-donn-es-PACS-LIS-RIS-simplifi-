@@ -30,7 +30,7 @@ from app.db.models import (
 from app.db.session import make_session_factory, session_dependency
 from app.modules.audit.service import record_event
 from app.modules.auth.service import authenticate, current_actor, require_csrf
-from app.modules.identity.service import accessible_encounters, resolve_patient
+from app.modules.identity.service import accessible_encounters, accessible_patients, resolve_patient
 from app.integrations.hl7.service import (
     MAX_MESSAGE_BYTES, ProfileError, build_ack, message_header, process_message, record_rejection,
 )
@@ -223,6 +223,28 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
             raise ApiError(*ACCESS_DENIED)
         return encounters
 
+    def patient_identity(patient: Patient) -> dict:
+        return {"id": patient.id, "external_id": patient.external_id,
+                "identifier_domain": patient.identifier_domain, "display_name": patient.display_name,
+                "is_synthetic": patient.is_synthetic}
+
+    @app.get("/api/v1/patients/available")
+    def list_available_patients(request: Request, limit: int = Query(50, ge=1, le=100),
+                                offset: int = Query(0, ge=0, le=2**31 - 1), db: Session = Depends(get_db)):
+        actor = current_actor(db, request)
+        allowed = bool(actor.roles.intersection(CLINICAL_IDENTITY_ROLES))
+        record_event(db, actor_user_id=actor.user_id, action="patient.list", resource_type="patient",
+                     resource_id=None, outcome="allowed" if allowed else "denied",
+                     correlation_id=request.state.correlation_id)
+        if not allowed:
+            db.commit()
+            raise ApiError(*ACCESS_DENIED)
+        patients = accessible_patients(db, actor.user_id, limit + 1, offset)
+        result = {"patients": [patient_identity(patient) for patient in patients[:limit]],
+                  "next_offset": offset + limit if len(patients) > limit else None}
+        db.commit()
+        return result
+
     @app.get("/api/v1/patients")
     def find_patients(request: Request, identifier: str = Query(min_length=1, max_length=100),
                       identifier_domain: str = Query(min_length=1, max_length=100),
@@ -232,10 +254,9 @@ def create_app(settings: Settings | None = None, session_factory: sessionmaker[S
         authorize_patient(db, request, patient, actor.user_id, actor.roles, "patient.search")
         record_event(db, actor_user_id=actor.user_id, action="patient.search", resource_type="patient",
                      resource_id=patient.id, outcome="allowed", correlation_id=request.state.correlation_id)
+        result = {"patients": [patient_identity(patient)]}
         db.commit()
-        return {"patients": [{"id": patient.id, "external_id": patient.external_id,
-                              "identifier_domain": patient.identifier_domain,
-                              "display_name": patient.display_name, "is_synthetic": patient.is_synthetic}]}
+        return result
 
     @app.get("/api/v1/patients/{patient_id}/encounters")
     def list_encounters(patient_id: UUID, request: Request, db: Session = Depends(get_db)):

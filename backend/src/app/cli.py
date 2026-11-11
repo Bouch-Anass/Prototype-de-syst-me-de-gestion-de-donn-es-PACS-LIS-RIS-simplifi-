@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.core.config import Settings
 from app.db.models import AppUser, Encounter, Patient, RadiologyExam, RadiologyOrder, RadiologyReport, UserEncounterAccess, UserRole
 from app.db.session import make_session_factory
+from app.demo_patients import seed_demo_patients
 from app.integrations.orthanc.client import OrthancClient
 from app.modules.auth.service import hash_password
 from app.modules.imaging.service import get_availability, match_study
@@ -179,6 +180,7 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("seed-demo")
     commands.add_parser("seed-demo-accounts")
+    commands.add_parser("seed-demo-patients")
     user_cmd = commands.add_parser("create-user")
     user_cmd.add_argument("--username", required=True)
     user_cmd.add_argument("--role", required=True, choices=ROLES)
@@ -196,6 +198,10 @@ def main() -> None:
         seed_demo(factory)
     elif args.command == "seed-demo-accounts":
         seed_demo_accounts(factory)
+    elif args.command == "seed-demo-patients":
+        manifest = json.loads((ROOT / "data/fixtures/scenario.json").read_text(encoding="utf-8"))
+        count = seed_demo_patients(factory, manifest, DEMO_ROLES)
+        print(f"{count} additional synthetic patient records ready.")
     elif args.command == "create-user":
         create_user(factory, args.username, args.role)
     elif args.command == "grant-encounter":

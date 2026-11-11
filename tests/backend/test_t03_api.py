@@ -20,7 +20,9 @@ os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 
 from app.cli import seed_demo  # noqa: E402
 from app.core.config import Settings  # noqa: E402
-from app.db.models import AppSession, AppUser, AuditEvent, Base, Patient, Role, UserEncounterAccess, UserRole  # noqa: E402
+from app.db.models import (  # noqa: E402
+    AppSession, AppUser, AuditEvent, Base, Encounter, Patient, Role, UserEncounterAccess, UserRole,
+)
 from app.main import create_app  # noqa: E402
 from app.modules.auth.service import hash_password  # noqa: E402
 
@@ -115,6 +117,29 @@ class T03ApiTests(unittest.TestCase):
             db.delete(db.get(UserEncounterAccess, (self.physician_id, ENCOUNTER_ID)))
         result = self.client.get("/api/v1/patients", params={"identifier_domain": "DEMO", "identifier": "DEMO-P001"})
         self.assertEqual(result.status_code, 403)
+
+    def test_available_patients_are_paginated_and_filtered_by_grant(self):
+        path = "/api/v1/patients/available"
+        self.assertEqual(self.client.get(path).status_code, 401)
+        self.login("admin")
+        self.assertEqual(self.client.get(path).status_code, 403)
+        self.login()
+        with self.factory.begin() as db:
+            for suffix, synthetic, granted in (("002", True, True), ("003", True, False), ("004", False, True)):
+                patient_id, encounter_id = str(uuid4()), str(uuid4())
+                db.add(Patient(id=patient_id, external_id=f"DEMO-P{suffix}", identifier_domain="DEMO",
+                               display_name=f"Patient {suffix}", is_synthetic=synthetic))
+                db.flush()
+                db.add(Encounter(id=encounter_id, patient_id=patient_id, external_id=f"DEMO-E{suffix}",
+                                 status="active", started_at=datetime.now(timezone.utc)))
+                db.flush()
+                if granted:
+                    db.add(UserEncounterAccess(user_id=self.physician_id, encounter_id=encounter_id))
+        first = self.client.get(path, params={"limit": 1}).json()
+        self.assertEqual([patient["external_id"] for patient in first["patients"]], ["DEMO-P001"])
+        second = self.client.get(path, params={"limit": 1, "offset": first["next_offset"]}).json()
+        self.assertEqual([patient["external_id"] for patient in second["patients"]], ["DEMO-P002"])
+        self.assertIsNone(second["next_offset"])
 
     def test_unknown_patient_is_404_and_identifier_is_exact(self):
         self.login()
