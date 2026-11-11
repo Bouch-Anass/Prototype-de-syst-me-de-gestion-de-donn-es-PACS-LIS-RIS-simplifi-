@@ -1,427 +1,831 @@
 const $ = (selector) => document.querySelector(selector);
-const feedback = $("#feedback");
 const record = $("#record");
-let requestNumber = 0;
-let liveSession = false;
-let currentRoles = new Set();
-let liveSummary = null;
-let currentPreviewUrl = null;
+const feedback = $("#feedback");
+const loginForm = $("#login-form");
+const loginFeedback = $("#login-feedback");
+const searchForm = $("#patient-search");
+const picker = $("#encounter-select");
+const labEditor = $("#lab-editor");
+const logoutButton = $("#logout-button");
+const overviewButton = $(".header-tab");
+const radiologyForm = $("#ris-edit");
+const previewUrls = new Set();
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
+const shortDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" });
+const visitOptionDate = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit" });
+const eventTime = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumSignificantDigits: 21 });
+const visitStates = { active: "En cours", closed: "Terminée", completed: "Terminée" };
+const modalities = { CT: "Scanner", MR: "IRM", US: "Échographie", CR: "Radiographie", DX: "Radiographie" };
+const roles = {
+  physician: "Médecin",
+  radiologist: "Radiologue",
+  lab_technician: "Technicien de laboratoire",
+  imaging_technician: "Technicien d’imagerie",
+};
 
-function setText(selector, value) {
-  $(selector).textContent = value == null ? "—" : String(value);
+let requestNumber = 0;
+let currentRoles = new Set();
+let currentSummary = null;
+let radiologyProgress = null;
+let signedIn = false;
+let saving = false;
+
+function node(tag, text, className) {
+  const element = document.createElement(tag);
+  if (text != null) element.textContent = text;
+  if (className) element.className = className;
+  return element;
 }
 
-function setStatus(selector, label, tone) {
-  const element = $(selector);
-  element.textContent = label;
+function tell(element, message = "", tone = "neutral") {
   element.dataset.tone = tone;
+  element.textContent = message;
 }
 
 function dateTime(value) {
-  if (!value) return "Date indisponible";
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return dateFormatter.format(new Date(value));
 }
 
-function detail(label, value) {
-  const group = document.createElement("div");
-  const title = document.createElement("dt");
-  const body = document.createElement("dd");
-  title.textContent = label;
-  body.textContent = value;
-  group.append(title, body);
-  return group;
+function visitDescription(visit) {
+  return [visit.started_at && dateTime(visit.started_at), visit.external_id].filter(Boolean).join(" · ");
+}
+
+function details(fields) {
+  const list = node("dl", null, "detail-list");
+  for (const [label, value] of fields) {
+    if (value == null || value === "") continue;
+    const group = node("div");
+    group.append(node("dt", label), node("dd", value));
+    list.append(group);
+  }
+  return list;
+}
+
+function setNavigationDisabled(disabled) {
+  picker.disabled = disabled;
+  searchForm.querySelector("button").disabled = disabled;
+  $("#identifier").disabled = disabled;
+  logoutButton.disabled = disabled;
+  overviewButton.disabled = disabled || record.hidden;
+  for (const button of record.querySelectorAll("button[data-view]")) button.disabled = disabled;
+}
+
+function setEditButtonsDisabled(disabled) {
+  for (const button of record.querySelectorAll('.editor-form button[type="submit"]')) button.disabled = disabled;
+}
+
+function clearPreviews() {
+  for (const url of previewUrls) URL.revokeObjectURL(url);
+  previewUrls.clear();
+}
+
+function setView(view) {
+  record.dataset.view = view;
+  overviewButton.setAttribute("aria-pressed", String(view === "overview"));
+  for (const button of record.querySelectorAll(".record-nav button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.view === view));
+  }
+}
+
+function clearRecord() {
+  record.hidden = true;
+  overviewButton.disabled = true;
+  setView("overview");
+  delete record.dataset.loading;
+  record.removeAttribute("aria-busy");
+  currentSummary = null;
+  radiologyProgress = null;
+  clearPreviews();
+  for (const editor of record.querySelectorAll(".editor")) {
+    editor.open = false;
+    editor.querySelector("form").reset();
+    tell(editor.querySelector(".form-feedback"));
+  }
+  for (const selector of ["#patient-name", "#patient-details", "#visit-details", "#warnings", "#ris-content", "#pacs-content",
+    "#lab-observations", "#record-metrics", "#record-shortcuts", "#timeline-range", "#timeline-events", "#timeline-plot"]) {
+    $(selector).replaceChildren();
+  }
+  $("#lab-results").replaceChildren(labEditor);
+}
+
+function renderLab(lab) {
+  const container = $("#lab-results");
+  const labels = { available: "Résultats reçus", partial: "Résultats partiels", unavailable: "Aucun résultat" };
+  tell($("#lab-status"), labels[lab.status] ?? "État inconnu",
+    lab.status === "available" ? "good" : lab.status === "partial" ? "warn" : "neutral");
+
+  const reports = lab.reports.map((report) => {
+    const entry = node("div", null, "entry");
+    const table = node("table", null, "results-table");
+    const caption = table.createCaption();
+    caption.className = "entry-meta";
+    caption.textContent = `Rapport du ${dateTime(report.reported_at)} · Version ${report.version}`;
+    const header = table.createTHead().insertRow();
+    for (const label of ["Analyse", "Résultat"]) {
+      const cell = node("th", label);
+      cell.scope = "col";
+      header.append(cell);
+    }
+    const body = table.createTBody();
+    for (const observation of report.observations) {
+      const row = body.insertRow();
+      const name = node("th", observation.display);
+      name.scope = "row";
+      row.append(name);
+      const value = row.insertCell();
+      value.className = "result-value";
+      if (observation.data_status === "available") {
+        value.textContent = observation.value_numeric == null
+          ? observation.value_text
+          : numberFormatter.format(observation.value_numeric);
+        if (observation.unit) value.append(node("small", ` ${observation.unit}`));
+      } else {
+        value.classList.add("missing");
+        value.textContent = observation.data_status === "missing" ? "Non reçu" : "Invalide";
+      }
+    }
+    entry.append(table);
+    return entry;
+  });
+
+  labEditor.hidden = !currentRoles.has("lab_technician") || !reports.length;
+  if (!labEditor.hidden) renderObservationEditor(lab.reports[0].observations);
+  if (reports.length) {
+    container.replaceChildren(...reports);
+    reports[0].append(labEditor);
+  } else {
+    container.replaceChildren(node("p", "Aucun résultat de laboratoire pour cette prise en charge.", "empty-copy"), labEditor);
+  }
+}
+
+function renderRadiology(exams) {
+  const complete = exams.length > 0 && exams.every((exam) => exam.report?.status === "final");
+  const completedLabel = exams.length === 1 ? "Compte rendu validé" : "Comptes rendus validés";
+  tell($("#ris-status"), complete ? completedLabel : exams.length ? "En attente de validation" : "Aucun examen",
+    complete ? "good" : exams.length ? "warn" : "neutral");
+
+  const container = $("#ris-content");
+  container.replaceChildren();
+  if (!exams.length) container.append(node("p", "Aucun examen de radiologie pour cette prise en charge.", "empty-copy"));
+  for (const exam of exams) {
+    const type = modalities[exam.modality] ?? exam.modality;
+    const entry = node("div", null, "entry");
+    const heading = node("div", null, "entry-head");
+    heading.append(node("h4", exam.requested_procedure || type));
+    if (exam.accession_number) heading.append(node("span", exam.accession_number, "entry-meta"));
+
+    const report = exam.report;
+    const reportState = report?.status === "final"
+      ? report.validated_at ? `Validé le ${dateTime(report.validated_at)}` : "Validé"
+      : report?.status === "draft" ? "Brouillon" : "Non renseigné";
+    entry.append(heading, details([
+      ["Type d’imagerie", exam.requested_procedure && type],
+      ["Priorité", exam.priority === "urgent" ? "Urgente" : exam.priority === "routine" ? "Standard" : null],
+      ["Examen", exam.performed_at ? `Réalisé le ${dateTime(exam.performed_at)}` :
+        { scheduled: "Planifié", performed: "Réalisé", cancelled: "Annulé" }[exam.status]],
+      ["Compte rendu", reportState],
+    ]));
+    if (report?.content) entry.append(node("p", report.content, "report-copy"));
+    container.append(entry);
+  }
+  $("#ris-editor").hidden = !currentRoles.has("radiologist");
+  const accession = $("#ris-accession");
+  if (accession.value === accession.defaultValue && exams.some((exam) => exam.accession_number === accession.value)) {
+    accession.value = "";
+  }
+}
+
+function addPreview(entry, study, index) {
+  const button = node("button", "Afficher l’aperçu", "secondary-button preview-button");
+  const panel = node("div");
+  const message = node("p", null, "feedback preview-feedback");
+  message.setAttribute("role", "status");
+  panel.id = `study-preview-${index}`;
+  panel.hidden = true;
+  button.type = "button";
+  button.setAttribute("aria-controls", panel.id);
+  button.setAttribute("aria-expanded", "false");
+
+  button.addEventListener("click", async () => {
+    if (panel.hasChildNodes()) {
+      panel.hidden = !panel.hidden;
+      button.setAttribute("aria-expanded", String(!panel.hidden));
+      button.textContent = panel.hidden ? "Afficher l’aperçu" : "Masquer l’aperçu";
+      return;
+    }
+    const request = requestNumber;
+    const hadFocus = document.activeElement === button;
+    button.disabled = true;
+    tell(message, "Chargement de l’aperçu…");
+    try {
+      const link = await api(`/api/v1/imaging-studies/${encodeURIComponent(study.id)}/viewer-link`);
+      const response = await fetch(link.url, { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) {
+        throw Object.assign(new Error("IMAGING_UNAVAILABLE"), { status: response.status });
+      }
+      const blob = await response.blob();
+      if (request !== requestNumber || !button.isConnected) return;
+      const url = URL.createObjectURL(blob);
+      previewUrls.add(url);
+      const image = node("img", null, "study-preview");
+      image.alt = "Aperçu de l’étude d’imagerie";
+      image.src = url;
+      panel.append(image);
+      panel.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      button.textContent = "Masquer l’aperçu";
+      tell(message, "Aperçu affiché.");
+    } catch (error) {
+      if (request !== requestNumber || !button.isConnected) return;
+      if (error.status === 401) {
+        expireSession();
+        return;
+      }
+      tell(message, "Impossible de charger l’aperçu. Vous pouvez réessayer.", "error");
+    } finally {
+      button.disabled = false;
+      if (request === requestNumber && hadFocus && document.activeElement === document.body) button.focus();
+    }
+  });
+  entry.append(button, message, panel);
+}
+
+function renderImaging(imaging, exams) {
+  const available = imaging.availability_status === "available";
+  const unavailable = imaging.availability_status === "unavailable";
+  const container = $("#pacs-content");
+  container.replaceChildren();
+  const label = available ? "Images disponibles" : unavailable ? "Imagerie indisponible"
+    : imaging.studies.length ? "Images partielles" : "Aucune image";
+  tell($("#pacs-status"), label, available ? "good" : unavailable || imaging.studies.length ? "warn" : "neutral");
+  if (!imaging.studies.length) {
+    container.append(node("p", unavailable ? "Le service d’imagerie est temporairement indisponible."
+      : "Aucune image n’est associée aux examens de cette prise en charge.", "empty-copy"));
+  }
+
+  const examsById = new Map(exams.map((exam) => [exam.id, exam]));
+  imaging.studies.forEach((study, index) => {
+    const entry = node("div", null, "entry");
+    const exam = examsById.get(study.exam_id);
+    const heading = node("div", null, "entry-head");
+    heading.append(node("h4", exam ? (modalities[exam.modality] ?? exam.modality) : "Étude d’imagerie"));
+    if (exam?.accession_number) heading.append(node("span", exam.accession_number, "entry-meta"));
+    entry.append(heading, details([["Séries", study.series_count], ["Images DICOM", study.instance_count]]));
+    if (study.last_synced_at) {
+      const sync = node("div", null, "imaging-sync");
+      sync.append(node("span", "Dernière synchronisation"), node("time", dateTime(study.last_synced_at)));
+      sync.lastChild.dateTime = study.last_synced_at;
+      entry.append(sync);
+    }
+    const technical = node("details", null, "technical-details");
+    technical.append(node("summary", "Détails techniques"), details([
+      ["Identifiant DICOM de l’étude", study.study_instance_uid],
+    ]));
+    entry.append(technical);
+    if (study.availability_status === "unavailable") {
+      entry.append(node("p", "Aperçu temporairement indisponible.", "section-note"));
+    } else {
+      addPreview(entry, study, index);
+    }
+    container.append(entry);
+  });
+  $("#imaging-editor").hidden = !currentRoles.has("imaging_technician");
+}
+
+function renderOverview({ laboratory, radiology: { exams }, imaging: { studies } }) {
+  const analyses = laboratory.reports.flatMap((report) => report.observations);
+  const measures = [
+    ["Analyses renseignées", analyses.filter((item) => item.data_status === "available").length, analyses.length],
+    ["Comptes rendus validés", exams.filter((exam) => exam.report?.status === "final").length, exams.length],
+    ["Examens réalisés", exams.filter((exam) => exam.status === "performed").length, exams.length],
+    ["Études disponibles", studies.filter((study) => study.availability_status === "available").length, studies.length],
+  ];
+  $("#record-metrics").replaceChildren(...measures.map(([label, count, total]) => {
+    const metric = node("div", null, "metric");
+    const heading = node("div", null, "metric-heading");
+    const tone = total === 0 ? "empty" : count === total ? "good" : "warn";
+    metric.dataset.tone = tone;
+    heading.append(node("span", label), node("span", `${count}/${total}`, "metric-count"));
+    const bar = node("div", null, "meter");
+    bar.setAttribute("aria-hidden", "true");
+    const fill = node("span");
+    fill.style.inlineSize = total ? `${100 * count / total}%` : "0";
+    bar.append(fill);
+    metric.append(heading, bar);
+    return metric;
+  }));
+
+  const actions = [
+    ["laboratory", "Résultats d’analyses", "Mettre à jour", "lab"],
+    ["radiology", "Examens et comptes rendus", "Ajouter un examen", "ris"],
+    ["imaging", "Images et études DICOM", "Importer des images", "imaging"],
+  ];
+  $("#record-shortcuts").replaceChildren(...actions.map(([view, label, editLabel, editorId]) => {
+    const item = node("div", null, "shortcut");
+    const editable = !$(`#${editorId}-editor`).hidden;
+    const button = node("button", editable ? editLabel : "Consulter", "primary-button");
+    button.type = "button";
+    button.dataset.view = view;
+    button.setAttribute("aria-label", editable ? editLabel : `Consulter · ${label}`);
+    if (editable) button.dataset.editor = `${editorId}-editor`;
+    item.append(node("p", label), button);
+    return item;
+  }));
+}
+
+function renderTimeline({ encounter, laboratory, radiology: { exams }, imaging: { studies } }) {
+  const events = [];
+  function add(timestamp, lane, label) {
+    if (timestamp && Number.isFinite(Date.parse(timestamp))) events.push({ timestamp, lane, label });
+  }
+  add(encounter.started_at, 0, "Début de la prise en charge");
+  for (const report of laboratory.reports) add(report.reported_at, 1, `Rapport de laboratoire · v${report.version}`);
+  for (const exam of exams) {
+    const reference = exam.accession_number ? ` · ${exam.accession_number}` : "";
+    add(exam.performed_at, 2, `Examen réalisé${reference}`);
+    add(exam.report?.validated_at, 2, `Compte rendu validé${reference}`);
+  }
+  for (const study of studies) add(study.last_synced_at, 3, "Synchronisation d’une étude");
+  events.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+
+  const first = events[0]?.timestamp;
+  const last = events.at(-1)?.timestamp;
+  const from = first ? shortDate.format(new Date(first)) : "";
+  const to = last ? shortDate.format(new Date(last)) : "";
+  $("#timeline-range").textContent = from === to ? from : `${from} — ${to}`;
+  $("#timeline-events").replaceChildren(...events.slice().reverse().map(({ timestamp, lane, label }) => {
+    const event = node("li");
+    event.dataset.lane = lane;
+    const time = node("time", eventTime.format(new Date(timestamp)));
+    time.dateTime = timestamp;
+    event.append(node("span", label), time);
+    return event;
+  }));
+
+  const timestamps = [...new Set(events.map(({ timestamp }) => Date.parse(timestamp)))];
+  const rank = new Map(timestamps.map((timestamp, index) => [timestamp, index]));
+  $("#timeline-plot").replaceChildren(...["Prise en charge", "Laboratoire", "Radiologie", "Imagerie"].map((label, lane) => {
+    const row = node("div", null, "plot-row");
+    const track = node("div", null, "plot-track");
+    for (const event of events.filter((item) => item.lane === lane)) {
+      const dot = node("span", null, "plot-dot");
+      const percent = timestamps.length > 1 ? rank.get(Date.parse(event.timestamp)) / (timestamps.length - 1) * 100 : 0;
+      dot.style.left = `${percent}%`;
+      track.append(dot);
+    }
+    row.append(node("span", label), track);
+    return row;
+  }));
 }
 
 function render(summary) {
-  if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
-  currentPreviewUrl = null;
-  const patient = summary.patient;
-  const encounter = summary.encounter;
-  setText("#patient-name", patient.display_name);
-  setText("#patient-details", `${patient.identifier_domain} · ${patient.external_id}  /  Rencontre ${encounter.external_id} · ${dateTime(encounter.started_at)}`);
-  setStatus("#encounter-status", encounter.status === "active" ? "Rencontre active" : encounter.status, "neutral");
+  clearPreviews();
+  const { patient, encounter, laboratory, radiology, imaging, warnings } = summary;
+  $("#patient-name").textContent = patient.display_name;
+  $("#patient-details").textContent = patient.external_id;
+  const visitState = $("#encounter-status");
+  visitState.hidden = !Object.hasOwn(visitStates, encounter.status);
+  tell(visitState, visitStates[encounter.status], encounter.status === "active" ? "good" : "neutral");
+  const visitDetails = $("#visit-details");
+  visitDetails.textContent = visitDescription(encounter);
+  visitDetails.hidden = picker.options.length > 1;
+  picker.hidden = !visitDetails.hidden;
 
-  const warnings = $("#warnings");
-  warnings.replaceChildren();
-  warnings.hidden = summary.warnings.length === 0;
-  for (const warning of summary.warnings) {
-    const item = document.createElement("p");
-    item.textContent = warning.message;
-    warnings.append(item);
-  }
-
-  const lab = summary.laboratory;
-  const labLabel = { available: "Complet", partial: "Partiel", unavailable: "Indisponible" }[lab.status] ?? lab.status;
-  setStatus("#lab-status", labLabel, lab.status === "available" ? "good" : "warn");
-  const labResults = $("#lab-results");
-  labResults.replaceChildren();
-  for (const report of lab.reports) {
-    for (const observation of report.observations) {
-      const row = document.createElement("div");
-      row.className = "result-row";
-      const identity = document.createElement("div");
-      const name = document.createElement("p");
-      name.className = "result-name";
-      name.textContent = observation.display;
-      const code = document.createElement("p");
-      code.className = "result-code";
-      code.textContent = `${observation.coding_system}:${observation.code}`;
-      identity.append(name, code);
-      const result = document.createElement("p");
-      result.className = "result-value";
-      if (observation.data_status === "available") {
-        result.textContent = observation.value_numeric ?? observation.value_text;
-        const unit = document.createElement("small");
-        unit.textContent = ` ${observation.unit ?? ""}`;
-        result.append(unit);
-      } else {
-        result.classList.add("missing");
-        result.textContent = observation.data_status === "missing" ? "Résultat manquant" : "Résultat invalide";
-      }
-      row.append(identity, result);
-      labResults.append(row);
-    }
-  }
-  const currentReport = lab.reports[0];
-  setText("#lab-meta", currentReport ? `Rapport v${currentReport.version} · ${dateTime(currentReport.reported_at)}` : "Aucun rapport");
-
-  const exams = summary.radiology.exams;
-  setStatus("#ris-status", exams.length && exams.every((exam) => exam.report?.status === "final") ? "Validé" : "En attente",
-    exams.length && exams.every((exam) => exam.report?.status === "final") ? "good" : "warn");
-  const risContent = $("#ris-content");
-  risContent.replaceChildren();
-  for (const exam of exams) {
-    const details = document.createElement("dl");
-    details.className = "detail-list";
-    details.append(
-      detail("Examen", `${exam.modality} · ${exam.accession_number}`),
-      detail("Procédure", exam.requested_procedure ?? "—"),
-      detail("Priorité", exam.priority === "urgent" ? "Urgent" : "Routine"),
-      detail("État", `${exam.order_status ?? "—"} / ${exam.status ?? "—"}`),
-      detail("Réalisé le", dateTime(exam.performed_at)),
-      detail("Compte rendu", exam.report?.status === "final" ? `Validé le ${dateTime(exam.report.validated_at)}` : "Non validé"),
-    );
-    risContent.append(details);
-    if (exam.report?.content) {
-      const text = document.createElement("p");
-      text.className = "report-copy";
-      text.textContent = exam.report.content;
-      risContent.append(text);
-    }
-  }
-
-  const imaging = summary.imaging;
-  const available = imaging.availability_status === "available";
-  const imagingLabel = { available: "Disponible", incomplete: "Incomplet", unavailable: "Indisponible" }[imaging.availability_status] ?? imaging.availability_status;
-  setStatus("#pacs-status", imagingLabel, available ? "good" : "warn");
-  const pacsContent = $("#pacs-content");
-  pacsContent.replaceChildren();
-  for (const study of imaging.studies) {
-    const details = document.createElement("dl");
-    details.className = "detail-list";
-    details.append(
-      detail("Study Instance UID", study.study_instance_uid),
-      detail("Séries / instances", `${study.series_count} / ${study.instance_count}`),
-      detail("Dernière synchronisation", dateTime(study.last_synced_at)),
-    );
-    pacsContent.append(details);
-    if (study.availability_status !== "unavailable") {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "scenario-button preview-button";
-      button.textContent = "Afficher l’aperçu";
-      button.addEventListener("click", async () => {
-        const thisRequest = requestNumber;
-        button.disabled = true;
-        button.textContent = "Chargement de l’aperçu…";
-        try {
-          const link = await api(`/api/v1/imaging-studies/${encodeURIComponent(study.id)}/viewer-link`);
-          const response = await fetch(link.url, { credentials: "same-origin", cache: "no-store" });
-          if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) throw new Error("preview");
-          const blob = await response.blob();
-          if (thisRequest !== requestNumber || !liveSession) return;
-          if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
-          currentPreviewUrl = URL.createObjectURL(blob);
-          const image = document.createElement("img");
-          image.className = "study-preview";
-          image.alt = "Aperçu DICOM non diagnostique de l’étude";
-          image.src = currentPreviewUrl;
-          pacsContent.append(image);
-          button.remove();
-        } catch {
-          if (thisRequest !== requestNumber || !liveSession) return;
-          button.disabled = false;
-          button.textContent = "Réessayer l’aperçu";
-          feedback.textContent = "Aperçu d’imagerie indisponible.";
-        }
-      });
-      pacsContent.append(button);
-    }
-  }
-  $("#lab-edit").hidden = !currentRoles.has("lab_technician") || !currentReport;
-  $("#ris-edit").hidden = !currentRoles.has("radiologist");
-  $("#imaging-edit").hidden = !currentRoles.has("imaging_technician");
-  if (currentRoles.has("lab_technician") && currentReport) renderObservationEditor(currentReport.observations);
+  const notices = $("#warnings");
+  const otherWarnings = warnings.filter(({ code }) => code !== "LAB_RESULT_MISSING" && code !== "IMAGING_UNAVAILABLE");
+  notices.replaceChildren(...otherWarnings.map(({ message }) => node("p", message)));
+  notices.hidden = !otherWarnings.length;
+  renderLab(laboratory);
+  renderRadiology(radiology.exams);
+  renderImaging(imaging, radiology.exams);
+  renderOverview(summary);
+  renderTimeline(summary);
   record.hidden = false;
-  feedback.textContent = "";
+  overviewButton.disabled = saving;
 }
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...options });
   if (!response.ok) {
     let code = "SERVICE_UNAVAILABLE";
-    try { code = (await response.json()).code ?? code; } catch { /* A proxy may return no JSON. */ }
-    const error = new Error(code);
-    error.status = response.status;
-    throw error;
+    try { code = (await response.json()).code ?? code; } catch { /* The server may return no JSON. */ }
+    throw Object.assign(new Error(code), { status: response.status });
   }
   return response.json();
 }
-
-function liveError(error) {
-  if (error.status === 401) {
-    liveSession = false;
-    currentRoles = new Set();
-    showLogin();
-    return "Session expirée. Connectez-vous à nouveau.";
-  }
-  if (error.status === 403) return "Accès refusé pour cette rencontre.";
-  if (error.status === 404) return "Aucun patient fictif ne correspond à cet identifiant exact.";
-  if (error.status === 503) return "Service métier temporairement indisponible.";
-  return "Impossible de joindre l'API locale. Ouvrez cette page depuis le serveur FastAPI.";
-}
-
-async function loadLiveSummary(encounterId) {
-  const thisRequest = ++requestNumber;
-  record.hidden = true;
-  feedback.textContent = "Chargement du dossier…";
-  try {
-    const summary = await api(`/api/v1/encounters/${encodeURIComponent(encounterId)}/summary`);
-    if (thisRequest !== requestNumber || !liveSession) return;
-    liveSummary = summary;
-    render(summary);
-  } catch (error) {
-    if (thisRequest !== requestNumber) return;
-    feedback.textContent = liveError(error);
-  }
-}
-
-async function searchLivePatient() {
-  if (!liveSession) {
-    feedback.textContent = "Connectez-vous pour rechercher un patient dans l'API locale.";
-    record.hidden = true;
-    return;
-  }
-  const thisRequest = ++requestNumber;
-  record.hidden = true;
-  feedback.textContent = "Recherche du patient…";
-  const identifier = $("#identifier").value.trim();
-  try {
-    const params = new URLSearchParams({ identifier_domain: "DEMO", identifier });
-    const patients = await api(`/api/v1/patients?${params}`);
-    if (thisRequest !== requestNumber || !liveSession) return;
-    const patient = patients.patients[0];
-    const result = await api(`/api/v1/patients/${encodeURIComponent(patient.id)}/encounters`);
-    if (thisRequest !== requestNumber || !liveSession) return;
-    const picker = $("#encounter-select");
-    picker.replaceChildren();
-    for (const encounter of result.encounters) {
-      const option = document.createElement("option");
-      option.value = encounter.id;
-      option.textContent = `${encounter.external_id} · ${dateTime(encounter.started_at)}`;
-      picker.append(option);
-    }
-    if (!picker.options.length) {
-      feedback.textContent = "Aucune rencontre accessible pour ce patient.";
-      return;
-    }
-    await loadLiveSummary(picker.value);
-  } catch (error) {
-    if (thisRequest !== requestNumber) return;
-    feedback.textContent = liveError(error);
-  }
-}
-
-$("#patient-search").addEventListener("submit", (event) => {
-  event.preventDefault();
-  searchLivePatient();
-});
-
-function showLogin() {
-  $("#login-form").hidden = false;
-  $("#control-bar").hidden = true;
-  $("#live-controls").hidden = true;
-  $("#role-label").textContent = "Connexion requise";
-  record.hidden = true;
-}
-
-function showWorkspace(session) {
-  liveSession = true;
-  currentRoles = new Set(session.roles);
-  $("#login-form").hidden = true;
-  $("#control-bar").hidden = false;
-  $("#live-controls").hidden = false;
-  const names = { physician: "Médecin", radiologist: "Radiologue", lab_technician: "Technicien de laboratoire",
-    imaging_technician: "Technicien d’imagerie" };
-  $("#role-label").textContent = session.roles.map((role) => names[role] ?? role).join(" · ");
-}
-
-$("#login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  feedback.textContent = "Connexion…";
-  try {
-    const session = await api("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: $("#username").value.trim(), password: $("#password").value }) });
-    $("#password").value = "";
-    showWorkspace(session);
-    await searchLivePatient();
-  } catch (error) {
-    feedback.textContent = error.status === 401 ? "Identifiants invalides." : liveError(error);
-  }
-});
-
-$("#logout-button").addEventListener("click", async () => {
-  const csrf = document.cookie.split("; ").find((item) => item.startsWith("csrf_token="))?.split("=")[1];
-  try {
-    await api("/api/v1/auth/logout", { method: "POST", headers: { "X-CSRF-Token": decodeURIComponent(csrf ?? "") } });
-  } catch { /* Clear this screen even when the session has already expired. */ }
-  liveSession = false;
-  currentRoles = new Set();
-  liveSummary = null;
-  ++requestNumber;
-  if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
-  currentPreviewUrl = null;
-  showLogin();
-  feedback.textContent = "Déconnecté.";
-});
-
-$("#encounter-select").addEventListener("change", (event) => loadLiveSummary(event.target.value));
 
 function csrfHeaders(extra = {}) {
   const token = document.cookie.split("; ").find((item) => item.startsWith("csrf_token="))?.split("=")[1];
   return { "X-CSRF-Token": decodeURIComponent(token ?? ""), ...extra };
 }
 
+function write(path, method, body) {
+  return api(path, {
+    method,
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+}
+
+function showLogin(message = "", tone = "neutral", focus = false) {
+  signedIn = false;
+  currentRoles.clear();
+  ++requestNumber;
+  clearRecord();
+  picker.replaceChildren();
+  $("#identifier").value = $("#identifier").defaultValue;
+  $("#workspace").hidden = true;
+  searchForm.hidden = true;
+  $("#login-context").hidden = false;
+  $("#session-controls").hidden = true;
+  $("#role-label").textContent = "";
+  $("#sign-in").hidden = false;
+  $("#password").value = "";
+  setPasswordVisible(false);
+  tell(loginFeedback, message, tone);
+  loginForm.querySelector('[type="submit"]').disabled = false;
+  if (focus) $("#login-title").focus();
+}
+
+function expireSession() {
+  showLogin("Votre session a expiré. Reconnectez-vous pour continuer.", "error", true);
+}
+
+function showWorkspace(session) {
+  signedIn = true;
+  currentRoles = new Set(session.roles);
+  $("#sign-in").hidden = true;
+  $("#workspace").hidden = false;
+  searchForm.hidden = false;
+  $("#login-context").hidden = true;
+  $("#session-controls").hidden = false;
+  $("#role-label").textContent = session.roles.map((role) => roles[role] ?? "Accès de démonstration").join(" · ");
+}
+
+function readError(error, notFound) {
+  if (error.status === 403) return "Votre compte n’a pas accès à ce dossier.";
+  if (error.status === 404) return notFound;
+  if (error.status === 422) return "Vérifiez l’identifiant saisi, puis relancez la recherche.";
+  return "Le service ne répond pas. Réessayez dans quelques instants.";
+}
+
+async function loadSummary(encounterId, refresh = false) {
+  const request = ++requestNumber;
+  if (!refresh) tell(feedback, "Chargement du dossier…");
+  try {
+    const summary = await api(`/api/v1/encounters/${encodeURIComponent(encounterId)}/summary`);
+    if (request !== requestNumber || !signedIn) return false;
+    currentSummary = summary;
+    render(summary);
+    tell(feedback, `Dossier de ${summary.patient.display_name} affiché.`);
+    feedback.classList.add("visually-hidden");
+    return true;
+  } catch (error) {
+    if (request !== requestNumber) return false;
+    if (error.status === 401) expireSession();
+    else if (!refresh) tell(feedback, readError(error, "Cette prise en charge n’est plus disponible."), "error");
+    return false;
+  }
+}
+
+async function searchPatient() {
+  if (!signedIn || saving) return;
+  const identifier = $("#identifier").value.trim();
+  if (!identifier) {
+    tell(feedback, "Saisissez l’identifiant du patient.", "error");
+    feedback.classList.remove("visually-hidden");
+    $("#identifier").focus();
+    return;
+  }
+  const request = ++requestNumber;
+  clearRecord();
+  picker.replaceChildren();
+  feedback.classList.remove("visually-hidden");
+  tell(feedback, "Recherche du patient…");
+  try {
+    const query = new URLSearchParams({ identifier_domain: "DEMO", identifier });
+    const { patients } = await api(`/api/v1/patients?${query}`);
+    if (request !== requestNumber || !signedIn) return;
+    if (!patients.length) throw Object.assign(new Error("NOT_FOUND"), { status: 404 });
+    const { encounters } = await api(`/api/v1/patients/${encodeURIComponent(patients[0].id)}/encounters`);
+    if (request !== requestNumber || !signedIn) return;
+    encounters.sort((a, b) => Number(b.status === "active") - Number(a.status === "active")
+      || Date.parse(b.started_at) - Date.parse(a.started_at));
+    for (const visit of encounters) {
+      const label = [visit.started_at && visitOptionDate.format(new Date(visit.started_at)), visit.external_id].filter(Boolean).join(" ");
+      picker.add(new Option(label, visit.id));
+    }
+    if (picker.options.length) {
+      await loadSummary(picker.value);
+    } else {
+      tell(feedback, "Aucune prise en charge accessible pour ce patient.");
+    }
+  } catch (error) {
+    if (request !== requestNumber) return;
+    if (error.status === 401) expireSession();
+    else tell(feedback, readError(error, "Aucun patient trouvé. Vérifiez l’identifiant et réessayez."), "error");
+  }
+}
+
+function setPasswordVisible(visible) {
+  $("#password").type = visible ? "text" : "password";
+  const button = $("#toggle-password");
+  button.textContent = visible ? "Masquer" : "Afficher";
+  button.setAttribute("aria-label", visible ? "Masquer le mot de passe" : "Afficher le mot de passe");
+}
+
+$("#toggle-password").addEventListener("click", () => setPasswordVisible($("#password").type === "password"));
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = loginForm.querySelector('[type="submit"]');
+  if (button.disabled) return;
+  button.disabled = true;
+  tell(loginFeedback, "Connexion en cours…");
+  try {
+    const session = await write("/api/v1/auth/login", "POST", {
+      username: $("#username").value.trim(),
+      password: $("#password").value,
+    });
+    $("#password").value = "";
+    setPasswordVisible(false);
+    showWorkspace(session);
+    $("#identifier").focus();
+    await searchPatient();
+  } catch (error) {
+    tell(loginFeedback, [401, 422].includes(error.status) ? "Identifiant ou mot de passe incorrect."
+      : "Connexion impossible pour le moment. Réessayez dans quelques instants.", "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+logoutButton.addEventListener("click", async () => {
+  setNavigationDisabled(true);
+  try {
+    await api("/api/v1/auth/logout", { method: "POST", headers: csrfHeaders() });
+    showLogin("Vous êtes déconnecté.", "neutral", true);
+  } catch (error) {
+    if (error.status === 401) showLogin("Vous êtes déconnecté.", "neutral", true);
+    else {
+      feedback.classList.remove("visually-hidden");
+      tell(feedback, "Déconnexion impossible. Réessayez dans quelques instants.", "error");
+    }
+  } finally {
+    setNavigationDisabled(false);
+  }
+});
+
+searchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchPatient();
+});
+
+overviewButton.addEventListener("click", () => setView("overview"));
+
+record.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-view]");
+  if (!button || saving || !currentSummary) return;
+  const { view, editor } = button.dataset;
+  setView(view);
+  if (!button.closest(".shortcut")) return;
+  if (editor) {
+    const details = document.getElementById(editor);
+    details.open = true;
+    details.querySelector("summary").focus();
+  } else {
+    $(`#${view}-panel h3`).focus();
+  }
+});
+
+picker.addEventListener("change", async () => {
+  if (saving) return;
+  const previous = currentSummary?.encounter.id;
+  const selected = picker.value;
+  if (selected === previous) return;
+  currentSummary = null;
+  radiologyProgress = null;
+  // Keep the selection focused while concealing the previous visit’s data.
+  record.dataset.loading = "";
+  record.setAttribute("aria-busy", "true");
+  $("#encounter-status").hidden = true;
+  feedback.classList.remove("visually-hidden");
+  for (const editor of record.querySelectorAll(".editor")) {
+    editor.open = false;
+    editor.querySelector("form").reset();
+    tell(editor.querySelector(".form-feedback"));
+  }
+  const loading = loadSummary(selected);
+  const request = requestNumber;
+  const success = await loading;
+  if (request === requestNumber) {
+    record.removeAttribute("aria-busy");
+    if (success) delete record.dataset.loading;
+  }
+});
+
 function addObservationRow(observation = {}) {
-  const row = document.createElement("div");
-  row.className = "observation-row";
-  for (const [field, label, value, type] of [
-    ["code", "Code", observation.code ?? "", "text"],
-    ["display", "Analyse", observation.display ?? "", "text"],
-    ["value", "Valeur", observation.data_status === "available" ? observation.value_numeric ?? "" : "", "number"],
-    ["unit", "Unité", observation.unit ?? "", "text"],
+  const row = node("div", null, "observation-row");
+  for (const [field, label, value, maxLength] of [
+    ["code", "Code", observation.code ?? "", 60],
+    ["display", "Analyse", observation.display ?? "", 120],
+    ["value", "Valeur", observation.value_numeric ?? "", null],
+    ["unit", "Unité", observation.unit ?? "", 20],
   ]) {
-    const wrapper = document.createElement("label");
-    wrapper.textContent = label;
-    const input = document.createElement("input");
+    const wrapper = node("label", label);
+    const input = node("input");
     input.dataset.field = field;
-    input.type = type;
+    input.type = field === "value" ? "number" : "text";
     input.value = value;
-    input.required = field !== "value";
     if (field === "value") input.step = "any";
+    else {
+      input.maxLength = maxLength;
+      input.required = true;
+    }
     wrapper.append(input);
     row.append(wrapper);
   }
-  const remove = document.createElement("button");
+  const remove = node("button", "Retirer", "quiet-button");
   remove.type = "button";
-  remove.className = "scenario-button";
-  remove.textContent = "Retirer";
-  remove.setAttribute("aria-label", `Retirer l’analyse ${observation.display ?? ""}`);
-  remove.addEventListener("click", () => row.remove());
+  remove.setAttribute("aria-label", observation.display ? `Retirer l’analyse ${observation.display}` : "Retirer cette analyse");
+  remove.addEventListener("click", () => {
+    const next = row.nextElementSibling?.querySelector("input") ?? $("#add-observation");
+    row.remove();
+    $("#add-observation").disabled = false;
+    next.focus();
+  });
   row.append(remove);
   $("#lab-observations").append(row);
+  $("#add-observation").disabled = $("#lab-observations").childElementCount >= 200;
   return row;
 }
 
 function renderObservationEditor(observations) {
   $("#lab-observations").replaceChildren();
   for (const observation of observations) addObservationRow(observation);
+  $("#add-observation").disabled = observations.length >= 200;
+  const hasTextResults = observations.some((observation) => observation.value_text != null);
+  const hint = $("#lab-edit").firstElementChild;
+  hint.textContent = "Une nouvelle version sera créée. Les résultats précédents seront conservés."
+    + (hasTextResults ? " Ce formulaire enregistre uniquement les valeurs numériques dans la nouvelle version." : "");
 }
 
 $("#add-observation").addEventListener("click", () => addObservationRow().querySelector("input").focus());
 
-async function submitEdit(form, operation) {
-  const button = form.querySelector("button[type=submit]");
-  const message = $("#action-feedback");
-  button.disabled = true;
-  message.textContent = "Enregistrement…";
+function editError(error) {
+  const messages = {
+    ACCESSION_CONFLICT: "Ce numéro d’examen est déjà utilisé. Choisissez-en un autre.",
+    INVALID_OBSERVATION: "Vérifiez les codes et les unités des analyses. Chaque code doit être unique.",
+    INVALID_REPORT_SEQUENCE: "Le rapport a été modifié entre-temps. Rechargez le dossier avant de réessayer.",
+    INVALID_TIME: "La date de l’examen doit être comprise dans la période de prise en charge.",
+    INVALID_TRANSITION: "L’examen a changé depuis l’ouverture du dossier. Rechargez le dossier avant de réessayer.",
+    INVALID_INPUT: "Vérifiez les informations saisies.",
+    NO_OBSERVATIONS: "Saisissez au moins une valeur numérique.",
+  };
+  if (error.status === 403) return "Votre compte ne permet pas cette modification.";
+  return messages[error.message] ?? "Enregistrement impossible. Réessayez dans quelques instants.";
+}
+
+async function submitEdit(form, operation, pending, successMessage) {
+  if (saving || !currentSummary || logoutButton.disabled) return;
+  const summary = currentSummary;
+  const button = form.querySelector('button[type="submit"]');
+  const message = form.querySelector(".form-feedback");
+  const hadFocus = form.contains(document.activeElement);
+  saving = true;
+  setNavigationDisabled(true);
+  setEditButtonsDisabled(true);
+  tell(message, pending);
   try {
-    await operation();
-    await loadLiveSummary(liveSummary.encounter.id);
-    message.textContent = "Modification enregistrée dans le dossier fictif.";
+    const outcome = await operation(summary, message);
+    if (!signedIn) return;
+    const refreshed = !outcome?.skipRefresh && await loadSummary(summary.encounter.id, true);
+    if (!signedIn) return;
+    if (outcome?.message) {
+      tell(message, outcome.message, outcome.tone);
+    } else {
+      tell(message, refreshed ? successMessage
+        : `${successMessage} Relancez la recherche pour afficher la mise à jour.`, "good");
+    }
   } catch (error) {
-    message.textContent = error.status ? `Modification refusée (${error.status}).` : "Modification impossible. Vérifiez les données et le service.";
+    if (!signedIn) return;
+    if (error.status === 401) expireSession();
+    else tell(message, editError(error), "error");
   } finally {
-    button.disabled = false;
+    saving = false;
+    setNavigationDisabled(false);
+    setEditButtonsDisabled(false);
+    if (signedIn && hadFocus && document.activeElement === document.body) button.focus();
   }
 }
 
 $("#lab-edit").addEventListener("submit", (event) => {
   event.preventDefault();
-  submitEdit(event.currentTarget, async () => {
-    const observations = [...document.querySelectorAll("#lab-observations .observation-row")].flatMap((row) => {
+  submitEdit(event.currentTarget, async (summary) => {
+    const observations = [];
+    for (const row of $("#lab-observations").children) {
       const field = (name) => row.querySelector(`[data-field="${name}"]`).value.trim();
-      if (field("value") === "") return [];
-      return [{ code: field("code"), display: field("display"), value_numeric: Number(field("value")), unit: field("unit") }];
-    });
-    if (!observations.length) throw new Error("empty-observations");
-    const orderId = liveSummary.laboratory.reports[0].lab_order_id;
-    await api(`/api/v1/lab-orders/${encodeURIComponent(orderId)}/reports`, { method: "POST",
-      headers: csrfHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ observations }) });
-  });
+      if (field("value") !== "") {
+        observations.push({ code: field("code"), display: field("display"), value_numeric: Number(field("value")), unit: field("unit") });
+      }
+    }
+    if (!observations.length) throw new Error("NO_OBSERVATIONS");
+    const { lab_order_id: orderId } = summary.laboratory.reports[0];
+    await write(`/api/v1/lab-orders/${encodeURIComponent(orderId)}/reports`, "POST", { observations });
+  }, "Enregistrement des résultats…", "Nouvelle version enregistrée.");
 });
 
-$("#ris-edit").addEventListener("submit", (event) => {
+radiologyForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  submitEdit(event.currentTarget, async () => {
-    const created = await api("/api/v1/radiology-orders", { method: "POST",
-      headers: csrfHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ encounter_id: liveSummary.encounter.id,
-        accession_number: $("#ris-accession").value.trim(),
-        requested_procedure: $("#ris-procedure").value.trim(),
-        modality: $("#ris-modality").value, priority: $("#ris-priority").value }) });
-    const path = `/api/v1/radiology-exams/${encodeURIComponent(created.exam_id)}`;
-    await api(path, { method: "PATCH", headers: csrfHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ status: "performed", performed_at: new Date().toISOString() }) });
-    await api(`${path}/report`, { method: "PUT", headers: csrfHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ content: $("#ris-report").value.trim() }) });
-    await api(`${path}/report/validate`, { method: "POST", headers: csrfHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ validated_at: new Date().toISOString() }) });
-  });
+  const form = event.currentTarget;
+  submitEdit(form, async (summary, message) => {
+    const accession = $("#ris-accession").value.trim();
+    const procedure = $("#ris-procedure").value.trim();
+    const content = $("#ris-report").value.trim();
+    if (!accession || !procedure || !content) throw new Error("INVALID_INPUT");
+
+    try {
+      if (!radiologyProgress || radiologyProgress.accession !== accession) {
+        const created = await write("/api/v1/radiology-orders", "POST", {
+          encounter_id: summary.encounter.id,
+          accession_number: accession,
+          requested_procedure: procedure,
+          modality: $("#ris-modality").value,
+          priority: $("#ris-priority").value,
+        });
+        radiologyProgress = { accession, examId: created.exam_id, performed: false };
+      }
+      const progress = radiologyProgress;
+      const path = `/api/v1/radiology-exams/${encodeURIComponent(progress.examId)}`;
+      if (!progress.performed) {
+        tell(message, "Enregistrement de la réalisation de l’examen…");
+        await write(path, "PATCH", { status: "performed", performed_at: new Date().toISOString() });
+        progress.performed = true;
+      }
+      await write(`${path}/report`, "PUT", { content });
+      tell(message, "Validation du compte rendu…");
+      await write(`${path}/report/validate`, "POST", { validated_at: new Date().toISOString() });
+      radiologyProgress = null;
+      form.reset();
+      $("#ris-accession").value = "";
+    } catch (error) {
+      if (error.status === 401 || radiologyProgress?.accession !== accession) throw error;
+      return { message: `Examen créé. ${editError(error)}`, tone: "error" };
+    }
+  }, "Enregistrement de l’examen…", "Examen enregistré et compte rendu validé.");
 });
 
 $("#imaging-edit").addEventListener("submit", (event) => {
   event.preventDefault();
-  const form = event.currentTarget;
-  const files = [...$("#dicom-file").files];
+  const input = $("#dicom-file");
+  const files = [...input.files];
   if (!files.length) return;
-  const button = form.querySelector("button[type=submit]");
-  const message = $("#action-feedback");
-  button.disabled = true;
-  (async () => {
+  const operation = submitEdit(event.currentTarget, async (summary, message) => {
     let imported = 0;
     const failed = [];
-    for (const file of files) {
-      message.textContent = `Import DICOM ${imported + failed.length + 1}/${files.length} : ${file.name}`;
+    const reasons = {
+      DICOM_MISMATCH: "fichier incompatible avec le patient ou l’examen",
+      INVALID_DICOM: "fichier DICOM invalide",
+      UNKNOWN_ACCESSION: "examen introuvable",
+      MODALITY_MISMATCH: "type d’imagerie différent de celui de l’examen",
+      PAYLOAD_TOO_LARGE: "plus de 8 Mio",
+      ACCESS_DENIED: "accès refusé",
+    };
+    for (const [index, file] of files.entries()) {
+      if (!signedIn) return;
+      tell(message, `Import du fichier ${index + 1} sur ${files.length}…`);
       if (file.size > 8 * 1024 * 1024) {
-        failed.push(`${file.name} (plus de 8 Mio)`);
+        failed.push({ file, reason: "plus de 8 Mio" });
         continue;
       }
       try {
-        await api(`/api/v1/encounters/${encodeURIComponent(liveSummary.encounter.id)}/imaging-studies`, {
-          method: "POST", headers: csrfHeaders({ "Content-Type": "application/dicom" }), body: file });
+        await api(`/api/v1/encounters/${encodeURIComponent(summary.encounter.id)}/imaging-studies`, {
+          method: "POST", headers: csrfHeaders({ "Content-Type": "application/dicom" }), body: file,
+        });
         imported += 1;
       } catch (error) {
-        failed.push(`${file.name} (${error.status ?? "réseau"})`);
+        if (error.status === 401) throw error;
+        failed.push({ file, reason: reasons[error.message] ?? "import impossible" });
       }
     }
-    if (imported) await loadLiveSummary(liveSummary.encounter.id);
-    message.textContent = `${imported}/${files.length} fichier(s) importé(s).` + (failed.length ? ` Échecs : ${failed.join(", ")}.` : "");
-    if (!failed.length) $("#dicom-file").value = "";
-  })().finally(() => { button.disabled = false; });
+    const retry = new DataTransfer();
+    for (const { file } of failed) retry.items.add(file);
+    input.files = retry.files;
+    const count = imported === 1 ? "1 fichier importé." : `${imported} fichiers importés.`;
+    const errors = failed.map(({ file, reason }) => `${file.name} (${reason})`).join(", ");
+    return { message: errors ? `${count} À vérifier : ${errors}.` : count,
+      tone: failed.length ? "error" : "good", skipRefresh: !imported };
+  }, "Import des fichiers…");
+  input.disabled = true;
+  operation.finally(() => { input.disabled = false; });
 });
 
-api("/api/v1/auth/me").then((session) => {
+try {
+  const session = await api("/api/v1/auth/me");
   showWorkspace(session);
-  searchLivePatient();
-}).catch(() => showLogin());
+  await searchPatient();
+} catch (error) {
+  if (error.status === 401) showLogin();
+  else showLogin("Impossible de vérifier la session. Vous pouvez réessayer de vous connecter.", "error");
+}

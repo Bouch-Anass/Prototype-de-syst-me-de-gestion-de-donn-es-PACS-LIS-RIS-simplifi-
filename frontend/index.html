@@ -4,138 +4,165 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#f8f9f2" />
     <title>Dossier patient · Démonstration</title>
-    <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="styles.css?v=2" />
-    <script type="module" src="app.js?v=2"></script>
+    <link rel="preload" href="fonts/sometype-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css?v=5" />
+    <script type="module" src="app.js?v=4"></script>
   </head>
   <body>
-    <header class="site-header">
-      <div class="shell header-inner">
-        <div class="brand" aria-label="Dossier unifié">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-          <span>Dossier<span class="brand-light"> unifié</span></span>
-        </div>
-        <div class="header-context">
-          <span class="header-divider" aria-hidden="true"></span>
-          <span>Prototype PACS · LIS · RIS</span>
-        </div>
-      </div>
-    </header>
-
-    <main class="shell main-content">
-      <nav class="breadcrumb" aria-label="Fil d’Ariane"><span>Espace de démonstration</span><span aria-hidden="true">/</span><strong>Dossier patient</strong></nav>
-
-      <div class="page-heading">
-        <div>
-          <p class="eyebrow accent">VUE UNIFIÉE <span aria-hidden="true">/</span> DEMO-001</p>
-          <h1 id="page-title">Dossier patient</h1>
-          <p class="page-description">Laboratoire, radiologie et imagerie dans une seule vue.</p>
-        </div>
-        <span id="role-label" class="read-only">Connexion requise</span>
-      </div>
-
-      <section class="workspace" aria-label="Dossier patient autorisé">
-        <form id="login-form" class="login-form">
-          <label>Utilisateur <input id="username" name="username" autocomplete="username" required /></label>
-          <label>Mot de passe <input id="password" name="password" type="password" autocomplete="current-password" required /></label>
-          <button class="primary-button" type="submit">Se connecter</button>
-        </form>
-        <div id="control-bar" class="control-bar" hidden>
-          <form id="patient-search" class="search-form" role="search">
-            <div class="search-field">
-              <label for="identifier">Rechercher un patient</label>
-              <div class="input-wrap">
-                <svg class="search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.3 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <input id="identifier" name="identifier" autocomplete="off" spellcheck="false" value="DEMO-P001" required />
-              </div>
-            </div>
-            <button class="primary-button" type="submit">Rechercher <span aria-hidden="true">↗</span></button>
-          </form>
-
-        </div>
-        <div id="live-controls" class="live-controls" hidden>
-          <label for="encounter-select">Rencontre</label>
-          <select id="encounter-select"></select>
-          <button id="logout-button" class="scenario-button" type="button">Se déconnecter</button>
-        </div>
-
-        <p id="feedback" class="feedback" role="status" aria-live="polite">Connectez-vous pour accéder au dossier.</p>
-        <div id="record" hidden>
-          <section class="patient-summary" aria-labelledby="patient-name">
-            <div class="patient-identity">
-              <p class="eyebrow">PATIENT FICTIF <span class="identity-separator" aria-hidden="true">·</span> DOSSIER ACTIF</p>
-              <div class="patient-title-row"><h2 id="patient-name"></h2><span id="encounter-status" class="status-pill"></span></div>
-              <p id="patient-details" class="patient-details"></p>
-            </div>
-            <div class="patient-source"><span class="source-mark" aria-hidden="true"></span><span>Vue consolidée<br /><strong>3 systèmes</strong></span></div>
-          </section>
-
-          <div id="warnings" class="warnings" role="status" aria-live="polite" hidden></div>
-
-          <div class="record-grid">
-            <div class="primary-column">
-              <section class="record-section" aria-labelledby="lab-title">
-                <div class="section-head">
-                  <div><p class="eyebrow">01 <span aria-hidden="true">/</span> LIS</p><h3 id="lab-title">Résultats biologiques</h3></div>
-                  <span id="lab-status" class="status-pill"></span>
-                </div>
-                <div class="table-heading" aria-hidden="true"><span>Analyse</span><span>Résultat</span></div>
-                <div id="lab-results"></div>
-                <p id="lab-meta" class="section-footnote"></p>
-                <form id="lab-edit" class="editor-form" hidden>
-                  <h4>Ajouter une version du résultat</h4>
-                  <p>Chaque envoi conserve le rapport précédent.</p>
-                  <div id="lab-observations" class="observation-list"></div>
-                  <button id="add-observation" class="scenario-button" type="button">+ Ajouter une analyse</button>
-                  <button class="primary-button" type="submit">Enregistrer le résultat</button>
-                </form>
-              </section>
-
-              <section class="record-section radiology-section" aria-labelledby="ris-title">
-                <div class="section-head">
-                  <div><p class="eyebrow">02 <span aria-hidden="true">/</span> RIS</p><h3 id="ris-title">Examen et compte rendu</h3></div>
-                  <span id="ris-status" class="status-pill"></span>
-                </div>
-                <div id="ris-content"></div>
-                <form id="ris-edit" class="editor-form" hidden>
-                  <h4>Créer un examen et son compte rendu</h4>
-                  <div class="editor-fields">
-                    <label>Accession <input id="ris-accession" value="DEMO-ACC002" required /></label>
-                    <label>Procédure <input id="ris-procedure" value="CT synthétique" required /></label>
-                    <label>Modalité <select id="ris-modality"><option value="CT">Scanner (CT)</option><option value="MR">IRM (MR)</option><option value="US">Échographie (US)</option><option value="CR">Radiographie (CR)</option></select></label>
-                    <label>Priorité <select id="ris-priority"><option value="routine">Routine</option><option value="urgent">Urgent</option></select></label>
-                  </div>
-                  <label>Compte rendu fictif <textarea id="ris-report" rows="3" required>Examen CT fictif réalisé. Aucun usage diagnostique.</textarea></label>
-                  <button class="primary-button" type="submit">Créer et valider</button>
-                </form>
-              </section>
-            </div>
-
-            <aside class="secondary-column" aria-label="Informations d’imagerie">
-              <section class="record-section imaging-section" aria-labelledby="pacs-title">
-                <div class="section-head">
-                  <div><p class="eyebrow">03 <span aria-hidden="true">/</span> PACS</p><h3 id="pacs-title">Étude d’imagerie</h3></div>
-                  <span id="pacs-status" class="status-pill"></span>
-                </div>
-                <p class="aside-intro">Disponibilité et métadonnées de l’étude liée à cet examen.</p>
-                <div id="pacs-content"></div>
-                <form id="imaging-edit" class="editor-form" hidden>
-                  <h4>Importer des images DICOM de démonstration</h4>
-                  <label>Fichiers DICOM (.dcm) <input id="dicom-file" type="file" accept=".dcm,application/dicom" multiple required /></label>
-                  <p>Choisissez plusieurs instances d’une même étude ou de différents examens déjà créés dans le RIS. 8 Mio maximum par fichier.</p>
-                  <button class="primary-button" type="submit">Importer les fichiers dans Orthanc</button>
-                </form>
-              </section>
-              <div class="data-note"><span class="note-line" aria-hidden="true"></span><strong>Accès contrôlé</strong><p id="data-source">Données du dossier autorisé, servies par l’API locale.</p></div>
-            </aside>
+    <div class="app-shell">
+      <header class="site-header">
+        <span class="brand">Dossier unifié</span>
+        <form id="patient-search" class="search-form" role="search" hidden>
+          <label class="visually-hidden" for="identifier">Identifiant du patient</label>
+          <div class="search-field">
+            <svg class="search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.3 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <input id="identifier" name="identifier" type="search" maxlength="100" placeholder="Identifiant du patient" autocomplete="off" spellcheck="false" value="DEMO-P001" required />
           </div>
-          <p id="action-feedback" class="action-feedback" role="status" aria-live="polite"></p>
+          <button class="secondary-button" type="submit">Rechercher</button>
+        </form>
+        <div id="session-controls" class="session-controls" hidden>
+          <button class="header-tab" type="button" data-view="overview" disabled>Dossier patient</button>
+          <span id="role-label" class="session-role"></span>
+          <button id="logout-button" class="secondary-button" type="button">Se déconnecter</button>
         </div>
-      </section>
-      <p class="disclaimer">Jeu de base synthétique ; les imports DICOM locaux doivent être préparés sans identifiants réels. Cet aperçu n'est pas un outil de diagnostic. Les droits sont vérifiés par le backend.</p>
-    </main>
+        <span id="login-context" class="login-context">Accès de démonstration</span>
+      </header>
+
+      <main class="app-content">
+        <section id="sign-in" class="sign-in" aria-labelledby="login-title">
+          <div class="sign-in-panel">
+            <h1 id="login-title" tabindex="-1">Connexion</h1>
+            <p class="intro">Connectez-vous avec un compte de démonstration pour accéder au dossier patient.</p>
+            <form id="login-form">
+              <label for="username">Identifiant de connexion</label>
+              <input id="username" name="username" maxlength="100" autocomplete="username" required />
+              <label for="password">Mot de passe</label>
+              <div class="password-field">
+                <input id="password" name="password" type="password" maxlength="1024" autocomplete="current-password" required />
+                <button id="toggle-password" class="quiet-button" type="button" aria-controls="password" aria-label="Afficher le mot de passe">Afficher</button>
+              </div>
+              <button class="primary-button" type="submit" disabled>Se connecter</button>
+            </form>
+            <p id="login-feedback" class="feedback" role="status">Vérification de la session…</p>
+          </div>
+        </section>
+
+        <section id="workspace" class="workspace" aria-labelledby="page-title" hidden>
+          <h1 id="page-title" class="visually-hidden">Dossier patient</h1>
+          <p id="feedback" class="feedback workspace-feedback" role="status"></p>
+          <div id="record" class="record" data-view="overview" hidden>
+            <nav class="record-nav" aria-label="Vues du dossier">
+              <button type="button" data-view="overview" aria-pressed="true">Vue d’ensemble</button>
+              <button type="button" data-view="laboratory" aria-pressed="false">Laboratoire</button>
+              <button type="button" data-view="radiology" aria-pressed="false">Radiologie</button>
+              <button type="button" data-view="imaging" aria-pressed="false">Imagerie</button>
+              <button type="button" data-view="timeline" aria-pressed="false">Chronologie</button>
+            </nav>
+            <section class="panel patient-summary" aria-labelledby="patient-name">
+              <p class="panel-rule patient-kicker">Fiche patient</p>
+              <div class="patient-identity">
+                <h2 id="patient-name"></h2>
+                <p id="patient-details" class="patient-details"></p>
+              </div>
+              <div id="visit-context" class="visit-context">
+                <div class="visit-heading">
+                  <span id="visit-label">Prise en charge</span>
+                </div>
+                <p id="visit-details" hidden></p>
+                <select id="encounter-select" aria-labelledby="visit-label" hidden></select>
+              </div>
+            </section>
+
+            <div id="warnings" class="warnings" hidden></div>
+
+            <section class="panel synthesis" aria-labelledby="synthesis-title">
+              <header class="section-head">
+                <h3 id="synthesis-title">État du dossier</h3>
+                <span id="encounter-status" class="status section-meta"></span>
+              </header>
+              <div id="record-metrics" class="metrics"></div>
+            </section>
+
+            <section class="panel shortcuts" aria-labelledby="shortcuts-title">
+              <header class="section-head"><h3 id="shortcuts-title">Accès rapide</h3></header>
+              <div id="record-shortcuts" class="shortcut-list"></div>
+            </section>
+
+            <section id="laboratory-panel" class="panel record-section laboratory-section" aria-labelledby="lab-title" data-panel="laboratory">
+              <header class="section-head">
+                <h3 id="lab-title" tabindex="-1">Laboratoire</h3>
+                <span id="lab-status" class="status"></span>
+              </header>
+              <div id="lab-results"></div>
+              <details id="lab-editor" class="editor" hidden>
+                <summary>Mettre à jour les résultats</summary>
+                <form id="lab-edit" class="editor-form">
+                  <p>Une nouvelle version sera créée. Les résultats précédents seront conservés.</p>
+                  <div id="lab-observations" class="observation-list"></div>
+                  <button id="add-observation" class="secondary-button" type="button">Ajouter une analyse</button>
+                  <button class="primary-button" type="submit">Enregistrer la nouvelle version</button>
+                  <p class="form-feedback feedback" role="status"></p>
+                </form>
+              </details>
+            </section>
+
+            <section id="radiology-panel" class="panel record-section radiology-section" aria-labelledby="ris-title" data-panel="radiology">
+              <header class="section-head">
+                <h3 id="ris-title" tabindex="-1">Radiologie</h3>
+                <span id="ris-status" class="status"></span>
+              </header>
+              <div id="ris-content"></div>
+              <details id="ris-editor" class="editor" hidden>
+                <summary>Ajouter un examen réalisé</summary>
+                <form id="ris-edit" class="editor-form">
+                  <div class="editor-fields">
+                    <label>Numéro d’examen <input id="ris-accession" value="DEMO-ACC002" maxlength="100" required /></label>
+                    <label>Intitulé de l’examen <input id="ris-procedure" value="Scanner de démonstration" maxlength="200" required /></label>
+                    <label>Type d’imagerie <select id="ris-modality"><option value="CT">Scanner (CT)</option><option value="MR">IRM (MR)</option><option value="US">Échographie (US)</option><option value="CR">Radiographie (CR)</option></select></label>
+                    <label>Priorité <select id="ris-priority"><option value="routine">Standard</option><option value="urgent">Urgente</option></select></label>
+                  </div>
+                  <label>Compte rendu <textarea id="ris-report" rows="3" maxlength="10000" required>Scanner fictif réalisé pour la démonstration.</textarea></label>
+                  <button class="primary-button" type="submit">Enregistrer et valider le compte rendu</button>
+                  <p class="form-feedback feedback" role="status"></p>
+                </form>
+              </details>
+            </section>
+            <section id="imaging-panel" class="panel record-section imaging-section" aria-labelledby="pacs-title" data-panel="imaging">
+              <header class="section-head">
+                <h3 id="pacs-title" tabindex="-1">Imagerie</h3>
+                <span id="pacs-status" class="status"></span>
+              </header>
+              <div id="pacs-content"></div>
+              <details id="imaging-editor" class="editor" hidden>
+                <summary>Importer des images</summary>
+                <form id="imaging-edit" class="editor-form">
+                  <label>Fichiers DICOM <input id="dicom-file" type="file" accept=".dcm,application/dicom" multiple required aria-describedby="dicom-hint" /></label>
+                  <p id="dicom-hint">Sélectionnez les fichiers d’examens déjà enregistrés dans le dossier, sans identifiants réels. 8 Mio maximum par fichier.</p>
+                  <button class="primary-button" type="submit">Importer les fichiers</button>
+                  <p class="form-feedback feedback" role="status"></p>
+                </form>
+              </details>
+            </section>
+            <section id="timeline-panel" class="panel timeline-section" aria-labelledby="timeline-title" data-panel="timeline">
+              <header class="section-head">
+                <h3 id="timeline-title" tabindex="-1">Chronologie du dossier</h3>
+                <span id="timeline-range" class="section-meta"></span>
+              </header>
+              <div class="timeline-body">
+                <ol id="timeline-events" class="timeline-events" aria-label="Événements du dossier"></ol>
+                <div class="timeline-chart" aria-hidden="true">
+                  <div id="timeline-plot" class="timeline-plot"></div>
+                  <div class="timeline-axis"><span>Plus ancien</span><span>Plus récent</span></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <footer class="disclaimer"><span>Données fictives</span><span>Aperçu non diagnostique</span></footer>
   </body>
 </html>
