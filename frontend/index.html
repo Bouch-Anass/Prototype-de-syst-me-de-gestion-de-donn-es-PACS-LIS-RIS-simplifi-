@@ -8,8 +8,8 @@
     <title>Dossier patient · Démonstration</title>
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="fonts/sometype-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="styles.css?v=8" />
-    <script type="module" src="app.js?v=6"></script>
+    <link rel="stylesheet" href="styles.css?v=9" />
+    <script type="module" src="app.js?v=8"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -159,13 +159,8 @@
                 <h3 id="timeline-title" tabindex="-1">Chronologie du dossier</h3>
                 <span id="timeline-range" class="section-meta"></span>
               </header>
-              <div class="timeline-body">
-                <ol id="timeline-events" class="timeline-events" aria-label="Événements du dossier"></ol>
-                <div class="timeline-chart" aria-hidden="true">
-                  <div id="timeline-plot" class="timeline-plot"></div>
-                  <div class="timeline-axis"><span>Plus ancien</span><span>Plus récent</span></div>
-                </div>
-              </div>
+              <p id="timeline-empty" class="care-timeline-empty" hidden>Aucun événement daté à afficher.</p>
+              <ol id="timeline-events" class="care-timeline" aria-label="Événements du dossier, du plus ancien au plus récent"></ol>
             </section>
           </div>
         </section>

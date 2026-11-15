@@ -19,7 +19,8 @@ const previewUrls = new Set();
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
 const shortDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" });
 const visitOptionDate = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit" });
-const eventTime = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const timelineHour = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+const timelineSecond = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumSignificantDigits: 21 });
 const visitStates = { active: "En cours", closed: "Terminée", completed: "Terminée" };
 const modalities = { CT: "Scanner", MR: "IRM", US: "Échographie", CR: "Radiographie", DX: "Radiographie" };
@@ -115,7 +116,7 @@ function clearRecord() {
     tell(editor.querySelector(".form-feedback"));
   }
   for (const selector of ["#patient-name", "#patient-details", "#visit-details", "#warnings", "#ris-content", "#pacs-content",
-    "#lab-observations", "#record-metrics", "#record-shortcuts", "#timeline-range", "#timeline-events", "#timeline-plot"]) {
+    "#lab-observations", "#record-metrics", "#record-shortcuts", "#timeline-range", "#timeline-events"]) {
     $(selector).replaceChildren();
   }
   $("#lab-results").replaceChildren(labEditor);
@@ -346,48 +347,65 @@ function renderOverview({ laboratory, radiology: { exams }, imaging: { studies }
   }));
 }
 
+function timelineIcon(kind) {
+  const paths = {
+    start: "M12 5v14M5 12h14",
+    laboratory: "M9 3h6M10 3v7l-5 8a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-8V3M8 15h8",
+    exam: "M4 3h16v14H4zM8 21h8M12 17v4M12 6a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+    report: "M14 3H5v18h14V8zM14 3v5h5M8 14l3 3 5-6",
+    imaging: "M4 4h16v16H4zM4 16l5-5 4 4 3-3 4 4M15 8h.01",
+  };
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  for (const [name, value] of Object.entries({
+    viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.6",
+    "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false",
+  })) svg.setAttribute(name, value);
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", paths[kind]);
+  svg.append(path);
+  return svg;
+}
+
 function renderTimeline({ encounter, laboratory, radiology: { exams }, imaging: { studies } }) {
   const events = [];
-  function add(timestamp, lane, label) {
-    if (timestamp && Number.isFinite(Date.parse(timestamp))) events.push({ timestamp, lane, label });
+  function add(timestamp, kind, label, context) {
+    const time = Date.parse(timestamp);
+    if (timestamp && Number.isFinite(time)) events.push({ timestamp, time, kind, label, context });
   }
-  add(encounter.started_at, 0, "Début de la prise en charge");
-  for (const report of laboratory.reports) add(report.reported_at, 1, `Rapport de laboratoire · v${report.version}`);
+  add(encounter.started_at, "start", "Début de la prise en charge", "Prise en charge");
+  for (const report of laboratory.reports) {
+    add(report.reported_at, "laboratory", "Rapport de laboratoire reçu", `Laboratoire · Version ${report.version}`);
+  }
   for (const exam of exams) {
     const reference = exam.accession_number ? ` · ${exam.accession_number}` : "";
-    add(exam.performed_at, 2, `Examen réalisé${reference}`);
-    add(exam.report?.validated_at, 2, `Compte rendu validé${reference}`);
+    add(exam.performed_at, "exam", "Examen réalisé", `Radiologie${reference}`);
+    add(exam.report?.validated_at, "report", "Compte rendu validé", `Radiologie${reference}`);
   }
-  for (const study of studies) add(study.last_synced_at, 3, "Synchronisation d’une étude");
-  events.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  for (const study of studies) {
+    add(study.last_synced_at, "imaging", "Images synchronisées", "Imagerie · Dernière synchronisation");
+  }
+  events.sort((a, b) => a.time - b.time);
 
   const first = events[0]?.timestamp;
   const last = events.at(-1)?.timestamp;
   const from = first ? shortDate.format(new Date(first)) : "";
   const to = last ? shortDate.format(new Date(last)) : "";
-  $("#timeline-range").textContent = from === to ? from : `${from} — ${to}`;
-  $("#timeline-events").replaceChildren(...events.slice().reverse().map(({ timestamp, lane, label }) => {
-    const event = node("li");
-    event.dataset.lane = lane;
-    const time = node("time", eventTime.format(new Date(timestamp)));
+  $("#timeline-range").textContent = !events.length ? "Aucune date" : from === to ? from : `${from} au ${to}`;
+  $("#timeline-empty").hidden = Boolean(events.length);
+  const clock = events.some((event) => new Date(event.time).getSeconds() !== 0) ? timelineSecond : timelineHour;
+  $("#timeline-events").replaceChildren(...events.map(({ timestamp, kind, label, context }) => {
+    const event = node("li", null, "care-event");
+    const time = node("time", null, "care-event-time");
     time.dateTime = timestamp;
-    event.append(node("span", label), time);
+    time.title = dateTime(timestamp);
+    time.append(node("span", clock.format(new Date(timestamp))));
+    time.append(node("small", shortDate.format(new Date(timestamp))));
+    const marker = node("span", null, "care-event-marker");
+    marker.append(timelineIcon(kind));
+    const description = node("div", null, "care-event-description");
+    description.append(node("strong", label), node("span", context));
+    event.append(time, marker, description);
     return event;
-  }));
-
-  const timestamps = [...new Set(events.map(({ timestamp }) => Date.parse(timestamp)))];
-  const rank = new Map(timestamps.map((timestamp, index) => [timestamp, index]));
-  $("#timeline-plot").replaceChildren(...["Prise en charge", "Laboratoire", "Radiologie", "Imagerie"].map((label, lane) => {
-    const row = node("div", null, "plot-row");
-    const track = node("div", null, "plot-track");
-    for (const event of events.filter((item) => item.lane === lane)) {
-      const dot = node("span", null, "plot-dot");
-      const percent = timestamps.length > 1 ? rank.get(Date.parse(event.timestamp)) / (timestamps.length - 1) * 100 : 0;
-      dot.style.left = `${percent}%`;
-      track.append(dot);
-    }
-    row.append(node("span", label), track);
-    return row;
   }));
 }
 
