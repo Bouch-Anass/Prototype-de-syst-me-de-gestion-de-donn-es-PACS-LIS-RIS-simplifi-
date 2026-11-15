@@ -8,8 +8,8 @@
     <title>Dossier patient · Démonstration</title>
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="fonts/sometype-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="styles.css?v=9" />
-    <script type="module" src="app.js?v=8"></script>
+    <link rel="stylesheet" href="styles.css?v=14" />
+    <script type="module" src="app.js?v=10"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -99,7 +99,7 @@
               <div id="record-shortcuts" class="shortcut-list"></div>
             </section>
 
-            <section id="laboratory-panel" class="panel record-section laboratory-section" aria-labelledby="lab-title" data-panel="laboratory">
+            <section id="laboratory-panel" class="panel record-section laboratory-section" aria-labelledby="lab-title" data-panel="laboratory" tabindex="0">
               <header class="section-head">
                 <h3 id="lab-title" tabindex="-1">Laboratoire</h3>
                 <span id="lab-status" class="status"></span>
@@ -117,7 +117,7 @@
               </details>
             </section>
 
-            <section id="radiology-panel" class="panel record-section radiology-section" aria-labelledby="ris-title" data-panel="radiology">
+            <section id="radiology-panel" class="panel record-section radiology-section" aria-labelledby="ris-title" data-panel="radiology" tabindex="0">
               <header class="section-head">
                 <h3 id="ris-title" tabindex="-1">Radiologie</h3>
                 <span id="ris-status" class="status"></span>
@@ -138,12 +138,15 @@
                 </form>
               </details>
             </section>
-            <section id="imaging-panel" class="panel record-section imaging-section" aria-labelledby="pacs-title" data-panel="imaging">
+            <section id="imaging-panel" class="panel record-section imaging-section" aria-labelledby="pacs-title" data-panel="imaging" tabindex="0">
               <header class="section-head">
                 <h3 id="pacs-title" tabindex="-1">Imagerie</h3>
                 <span id="pacs-status" class="status"></span>
               </header>
-              <div id="pacs-content"></div>
+              <div id="imaging-workspace" class="imaging-workspace">
+                <div id="pacs-content"></div>
+                <div id="imaging-previews" class="imaging-previews" role="region" aria-label="Aperçu de l’étude sélectionnée" hidden></div>
+              </div>
               <details id="imaging-editor" class="editor" hidden>
                 <summary>Importer des images</summary>
                 <form id="imaging-edit" class="editor-form">
@@ -154,7 +157,7 @@
                 </form>
               </details>
             </section>
-            <section id="timeline-panel" class="panel timeline-section" aria-labelledby="timeline-title" data-panel="timeline">
+            <section id="timeline-panel" class="panel timeline-section" aria-labelledby="timeline-title" data-panel="timeline" tabindex="0">
               <header class="section-head">
                 <h3 id="timeline-title" tabindex="-1">Chronologie du dossier</h3>
                 <span id="timeline-range" class="section-meta"></span>

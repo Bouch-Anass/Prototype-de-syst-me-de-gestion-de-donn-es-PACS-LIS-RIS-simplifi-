@@ -60,7 +60,7 @@ Le [compte rendu Docker](docs/DOCKER_FIX.md) retrace une vérification sur les d
 .\start-local.cmd
 ```
 
-Le lanceur réutilise `.venv`, PostgreSQL sur le port `5432`, la base `pacs_lis_ris` et le secret `data/local/hl7_service_secret.txt`. Au premier démarrage du serveur, il demande le mot de passe PostgreSQL du compte `app`, puis le conserve chiffré pour le même utilisateur Windows sur ce PC dans `data/local/` (ignoré par Git). Il ouvre le navigateur quand l'API est prête et conserve les données existantes. Gardez la fenêtre ouverte ; `Ctrl+C` arrête le serveur. Si l'application est déjà prête, le lanceur ouvre simplement son interface. Pour saisir un nouveau mot de passe de base : `.\start-local.cmd -ResetDatabasePassword`. Orthanc doit être configuré séparément pour les aperçus DICOM.
+Le lanceur réutilise `.venv`, PostgreSQL sur le port `5432`, la base `pacs_lis_ris` et le secret `data/local/hl7_service_secret.txt`. Au premier démarrage du serveur, il demande le mot de passe PostgreSQL du compte `app`, puis le conserve chiffré pour le même utilisateur Windows sur ce PC dans `data/local/` (ignoré par Git). Il ouvre le navigateur quand l'API est prête et conserve les données existantes. Gardez la fenêtre ouverte ; `Ctrl+C` arrête le serveur. Si l'application est déjà prête, le lanceur ouvre simplement son interface. Pour saisir un nouveau mot de passe de base : `.\start-local.cmd -ResetDatabasePassword`. Une fois les [images publiques de démonstration](data/dicom/README.md) chargées, il redémarre aussi le PACS Orthanc local et configure sa connexion au backend.
 
 Après une mise à jour du dépôt, installez les dépendances avec `.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt`, puis lancez `.\start-local.cmd -UpgradeDatabase` pour appliquer les migrations nécessaires et démarrer le serveur. L'installation native initiale reste un prérequis : Python 3.12+, `.venv`, service PostgreSQL actif, compte `app`, base `pacs_lis_ris` et secret HL7 local.
 
@@ -111,6 +111,8 @@ docker compose -f infra/compose.yaml run --rm app python -m app.cli seed-demo-pa
 ```
 
 En installation native, la même commande `python -m app.cli seed-demo-patients` s'exécute depuis `backend`, dans l'environnement Python configuré avec `PYTHONPATH=src` et les variables de connexion à la base.
+
+Pour remplir la page **Imagerie** de `DEMO-P001` avec un scanner et deux IRM de test publics, exécutez `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/load-demo-imaging.ps1` sur l'installation native initialisée. Le [guide des images de démonstration](data/dicom/README.md) décrit les sources, la préparation et les aperçus. Les fichiers DICOM restent hors Git.
 
 ## Vérifications
 

@@ -116,7 +116,7 @@ function clearRecord() {
     tell(editor.querySelector(".form-feedback"));
   }
   for (const selector of ["#patient-name", "#patient-details", "#visit-details", "#warnings", "#ris-content", "#pacs-content",
-    "#lab-observations", "#record-metrics", "#record-shortcuts", "#timeline-range", "#timeline-events"]) {
+    "#lab-observations", "#record-metrics", "#record-shortcuts", "#timeline-range", "#timeline-events", "#imaging-previews"]) {
     $(selector).replaceChildren();
   }
   $("#lab-results").replaceChildren(labEditor);
@@ -209,9 +209,9 @@ function renderRadiology(exams) {
   }
 }
 
-function addPreview(entry, study, index) {
+function addPreview(information, study, index, viewer) {
   const button = node("button", "Afficher l’aperçu", "secondary-button preview-button");
-  const panel = node("div");
+  const panel = node("div", null, "study-preview-pane");
   const message = node("p", null, "feedback preview-feedback");
   message.setAttribute("role", "status");
   panel.id = `study-preview-${index}`;
@@ -220,11 +220,24 @@ function addPreview(entry, study, index) {
   button.setAttribute("aria-controls", panel.id);
   button.setAttribute("aria-expanded", "false");
 
+  function setVisible(visible) {
+    panel.hidden = !visible;
+    button.setAttribute("aria-expanded", String(visible));
+    button.textContent = visible ? "Masquer l’aperçu" : "Afficher l’aperçu";
+    tell(message, visible ? "Aperçu affiché." : "");
+  }
+  const control = { setVisible };
+  viewer.controls.push(control);
+  function showPreview(visible) {
+    for (const item of viewer.controls) item.setVisible(item === control && visible);
+    viewer.pane.hidden = !visible;
+    viewer.layout.classList.toggle("has-preview", visible);
+  }
+
   button.addEventListener("click", async () => {
+    const selection = ++viewer.selection;
     if (panel.hasChildNodes()) {
-      panel.hidden = !panel.hidden;
-      button.setAttribute("aria-expanded", String(!panel.hidden));
-      button.textContent = panel.hidden ? "Afficher l’aperçu" : "Masquer l’aperçu";
+      showPreview(panel.hidden);
       return;
     }
     const request = requestNumber;
@@ -245,23 +258,23 @@ function addPreview(entry, study, index) {
       image.alt = "Aperçu de l’étude d’imagerie";
       image.src = url;
       panel.append(image);
-      panel.hidden = false;
-      button.setAttribute("aria-expanded", "true");
-      button.textContent = "Masquer l’aperçu";
-      tell(message, "Aperçu affiché.");
+      if (selection === viewer.selection) showPreview(true);
+      else tell(message);
     } catch (error) {
       if (request !== requestNumber || !button.isConnected) return;
       if (error.status === 401) {
         expireSession();
         return;
       }
+      if (selection !== viewer.selection) { tell(message); return; }
       tell(message, "Impossible de charger l’aperçu. Vous pouvez réessayer.", "error");
     } finally {
       button.disabled = false;
       if (request === requestNumber && hadFocus && document.activeElement === document.body) button.focus();
     }
   });
-  entry.append(button, message, panel);
+  information.append(button, message);
+  viewer.pane.append(panel);
 }
 
 function renderImaging(imaging, exams) {
@@ -269,6 +282,10 @@ function renderImaging(imaging, exams) {
   const unavailable = imaging.availability_status === "unavailable";
   const container = $("#pacs-content");
   container.replaceChildren();
+  const viewer = { pane: $("#imaging-previews"), layout: $("#imaging-workspace"), controls: [], selection: 0 };
+  viewer.pane.replaceChildren();
+  viewer.pane.hidden = true;
+  viewer.layout.classList.remove("has-preview");
   const label = available ? "Images disponibles" : unavailable ? "Imagerie indisponible"
     : imaging.studies.length ? "Images partielles" : "Aucune image";
   tell($("#pacs-status"), label, available ? "good" : unavailable || imaging.studies.length ? "warn" : "neutral");
@@ -279,27 +296,29 @@ function renderImaging(imaging, exams) {
 
   const examsById = new Map(exams.map((exam) => [exam.id, exam]));
   imaging.studies.forEach((study, index) => {
-    const entry = node("div", null, "entry");
+    const entry = node("div", null, "entry imaging-study");
+    const information = node("div", null, "imaging-study-info");
+    entry.append(information);
     const exam = examsById.get(study.exam_id);
     const heading = node("div", null, "entry-head");
     heading.append(node("h4", exam ? (modalities[exam.modality] ?? exam.modality) : "Étude d’imagerie"));
     if (exam?.accession_number) heading.append(node("span", exam.accession_number, "entry-meta"));
-    entry.append(heading, details([["Séries", study.series_count], ["Images DICOM", study.instance_count]]));
+    information.append(heading, details([["Séries", study.series_count], ["Images DICOM", study.instance_count]]));
     if (study.last_synced_at) {
       const sync = node("div", null, "imaging-sync");
       sync.append(node("span", "Dernière synchronisation"), node("time", dateTime(study.last_synced_at)));
       sync.lastChild.dateTime = study.last_synced_at;
-      entry.append(sync);
+      information.append(sync);
     }
     const technical = node("details", null, "technical-details");
     technical.append(node("summary", "Détails techniques"), details([
       ["Identifiant DICOM de l’étude", study.study_instance_uid],
     ]));
-    entry.append(technical);
+    information.append(technical);
     if (study.availability_status === "unavailable") {
-      entry.append(node("p", "Aperçu temporairement indisponible.", "section-note"));
+      information.append(node("p", "Aperçu temporairement indisponible.", "section-note"));
     } else {
-      addPreview(entry, study, index);
+      addPreview(information, study, index, viewer);
     }
     container.append(entry);
   });

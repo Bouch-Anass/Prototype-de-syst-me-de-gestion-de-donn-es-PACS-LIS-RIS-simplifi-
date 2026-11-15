@@ -1,0 +1,36 @@
+{
+  "purpose": "Public interoperability test images copied into the fictional DEMO-P001 record; not diagnostic studies.",
+  "provenance_url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/README.txt",
+  "samples": [
+    {
+      "filename": "CT_small.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/CT_small.dcm",
+      "sha256": "3dd31e5cc835b3f2cdd46c9da1982f59251e78518fefa8163d914631c66437d6",
+      "modality": "CT",
+      "procedure": "Scanner de demonstration, image de test publique",
+      "accession": "DEMO-ACC001",
+      "study_uid": "2.25.10101",
+      "variant": 1
+    },
+    {
+      "filename": "MR2_UNCR.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom-data/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/MR2_UNCR.dcm",
+      "sha256": "c14c7f0c6e25bd4dfbb822fe264e540fc7142bf1c9d15d4c652ec8f5f97fa9e8",
+      "modality": "MR",
+      "procedure": "IRM de demonstration, image de test publique",
+      "accession": "DEMO-WEB-MR001",
+      "study_uid": "2.25.139680309197157559350924870252763898681",
+      "variant": 2
+    },
+    {
+      "filename": "MR_small.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small.dcm",
+      "sha256": "3f27d1c22f1a66e80d7bb7c911e8610fd0bb70325a76746a7adb1c0ddefcf2bb",
+      "modality": "MR",
+      "procedure": "Seconde IRM de demonstration, image de test publique",
+      "accession": "DEMO-WEB-MR002",
+      "study_uid": "2.25.224958717942593773922201486530467014582",
+      "variant": 2
+    }
+  ]
+}
