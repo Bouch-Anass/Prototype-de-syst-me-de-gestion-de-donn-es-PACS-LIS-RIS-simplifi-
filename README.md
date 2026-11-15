@@ -39,14 +39,18 @@ La v0.1 se limite à un parcours synthétique pour le médecin, le radiologue, l
 
 | Ce qui se visite ou se teste aujourd'hui | État |
 | --- | --- |
-| [Interface web](frontend/README.md) : connexion et dossier autorisé | Recherche, synthèse et formulaires propres aux rôles, avec analyses et fichiers DICOM multiples |
+| [Interface web](frontend/README.md) : connexion et dossier autorisé | Recherche par nom ou identifiant, synthèse, chronologie avec icônes, dates et heures, formulaires selon le rôle |
 | [Backend FastAPI](backend/README.md) : session, identité, audit, laboratoire, HL7, RIS, synthèse et imagerie | Démarre dans Compose avec PostgreSQL 17 ; parcours authentifié LIS/RIS/PACS et refus entre rôles vérifiés |
 | [Environnement local](infra/README.md) : PostgreSQL, Orthanc et application dans Docker Compose | Démarrage et healthchecks vérifiés ; persistance des volumes encore à mesurer |
 | [Contrats](contracts/README.md) HL7 v2.5.1, API et imagerie | Profil HL7 branché au laboratoire ; workflows RIS et rapprochement PACS internes testés |
 
+Après connexion, la recherche propose uniquement les patients autorisés. Le dossier regroupe les analyses, la radiologie, l'imagerie et une chronologie lisible : chaque événement porte son heure, sa date, une icône et le service concerné. Les formulaires permettent au laboratoire d'enregistrer plusieurs analyses et au technicien d'imagerie d'importer plusieurs fichiers DICOM, avec un résultat par fichier.
+
 ## Démarrage rapide
 
 **Lancer l'application :** suivez la [démonstration conteneurisée](docs/DOCKER.md) pour démarrer PostgreSQL, Orthanc et FastAPI et charger le scénario fictif. Ouvrez ensuite **http://127.0.0.1:8000/frontend/**, connectez-vous avec un compte de démonstration, puis recherchez `DEMO-P001`. Le [guide manuel](docs/DEMO.md) reste disponible si le backend tourne sur l'hôte.
+
+Le frontend est servi par FastAPI : aucun serveur npm séparé n'est nécessaire. La consultation exige une session authentifiée ; les fichiers JSON de `contracts/examples/` servent aux tests de contrat.
 
 Le [compte rendu Docker](docs/DOCKER_FIX.md) retrace une vérification sur les données existantes ; les [suggestions de présentation](docs/DEMO_SUGGESTIONS.md) proposent un déroulé de démonstration.
 
@@ -58,9 +62,18 @@ Le [compte rendu Docker](docs/DOCKER_FIX.md) retrace une vérification sur les d
 
 Le lanceur réutilise `.venv`, PostgreSQL sur le port `5432`, la base `pacs_lis_ris` et le secret `data/local/hl7_service_secret.txt`. Au premier démarrage du serveur, il demande le mot de passe PostgreSQL du compte `app`, puis le conserve chiffré pour le même utilisateur Windows sur ce PC dans `data/local/` (ignoré par Git). Il ouvre le navigateur quand l'API est prête et conserve les données existantes. Gardez la fenêtre ouverte ; `Ctrl+C` arrête le serveur. Si l'application est déjà prête, le lanceur ouvre simplement son interface. Pour saisir un nouveau mot de passe de base : `.\start-local.cmd -ResetDatabasePassword`. Orthanc doit être configuré séparément pour les aperçus DICOM.
 
-Après une mise à jour du dépôt, installez les dépendances avec `.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt`. Avec les variables de connexion de votre installation native, appliquez les migrations depuis `backend` avec `..\.venv\Scripts\python.exe -m alembic upgrade head` avant de relancer le serveur.
+Après une mise à jour du dépôt, installez les dépendances avec `.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt`, puis lancez `.\start-local.cmd -UpgradeDatabase` pour appliquer les migrations nécessaires et démarrer le serveur. L'installation native initiale reste un prérequis : Python 3.12+, `.venv`, service PostgreSQL actif, compte `app`, base `pacs_lis_ris` et secret HL7 local.
 
 ## Architecture
+
+![Architecture PACS/LIS/RIS : interface web authentifiée, backend FastAPI modulaire, PostgreSQL métier, PACS Orthanc et simulateurs HL7/DICOM](docs/diagrams/system-architecture.png)
+
+[Ouvrir le schéma en grand](docs/diagrams/system-architecture.png) · [Source modifiable Excalidraw](docs/diagrams/system-architecture.excalidraw)
+
+Une seule application FastAPI porte les modules métier : identité, laboratoire, radiologie, imagerie, synthèse et audit. PostgreSQL conserve les données métier et les droits ; Orthanc conserve les fichiers DICOM et leur index PACS. L'accès à un dossier exige à la fois un rôle autorisé et une permission explicite sur la rencontre.
+
+<details>
+<summary>Vue synthétique des flux</summary>
 
 ```mermaid
 flowchart LR
@@ -71,21 +84,33 @@ flowchart LR
     MOD["Modalité simulée"] -->|"C-STORE vérifié"| PACS
 ```
 
+</details>
+
 Le flux HL7, le C-STORE DICOM, l'import via l'application et le rapprochement ont été vérifiés sur le Compose PostgreSQL 17/Orthanc réel. La consultation authentifiée et les règles de rôle ont aussi été vérifiées via HTTP. La persistance après redémarrage reste à vérifier. Les pixels DICOM restent dans Orthanc ; les données métier et les traces résident dans PostgreSQL. Le navigateur ne reçoit ni accès direct à la base ni identifiants d'administration Orthanc. L'[architecture détaillée](ARCHITECTURE.md) décrit les frontières et les modes dégradés.
+
+Dans Compose, l'application est publiée sur `127.0.0.1:8000`, PostgreSQL sur `127.0.0.1:5433` vers le port interne `5432`, et l'API REST Orthanc sur `127.0.0.1:8042`. Le port DICOM `4242` reste interne au réseau Compose ; le simulateur y est exécuté depuis le service `app`. L'installation native Windows utilise PostgreSQL sur `5432` par défaut.
 
 ### Stack et état réel
 
 | Couche | Technologie | Situation |
 | --- | --- | --- |
-| API | Python, FastAPI, SQLAlchemy, Alembic | T03–T08 et routes d'imagerie T10 implémentés ; tests SQLite avec doubles Orthanc |
+| API | Python, FastAPI, SQLAlchemy, Alembic | Modules métier, droits et audit implémentés ; tests SQLite et parcours authentifié vérifié sur Compose |
 | Données métier | PostgreSQL 17 | Compose démarré ; migration et parcours authentifié vérifiés sur le conteneur |
 | PACS | Orthanc | Import réel d'une instance synthétique et aperçu PNG vérifiés via API |
-| Interface | HTML, CSS, JavaScript | Connexion obligatoire, session restaurée et outils d'édition selon le rôle |
-| Échanges | HL7 v2.5.1, DICOM | HL7 testé sur SQLite ; génération DICOM et C-STORE de boucle locale testés |
+| Interface | HTML, CSS, JavaScript | Connexion obligatoire, session restaurée, recherche, chronologie datée et outils selon le rôle |
+| Échanges | HL7 v2.5.1, DICOM | Ingestion HL7, C-STORE vers Orthanc réel et rapprochement vérifiés sur Compose |
 
 ## Scénario synthétique
 
 Le [manifeste commun](data/fixtures/scenario.json) suit le patient `DEMO-P001` pendant la rencontre `DEMO-E001` : une CRP, une mesure de glucose et un examen CT. La variante dégradée garde le glucose visible quand la CRP manque ; **une valeur absente n'est jamais transformée en zéro**. Les [trois réponses de référence](contracts/examples/README.md) couvrent le cas nominal, la CRP manquante et l'indisponibilité d'Orthanc.
+
+Une fois le scénario de base et les comptes de démonstration initialisés, la commande suivante ajoute 24 dossiers fictifs (`DEMO-P002` à `DEMO-P025`) et accorde leur accès aux comptes de démonstration déjà autorisés sur `DEMO-E001` :
+
+```powershell
+docker compose -f infra/compose.yaml run --rm app python -m app.cli seed-demo-patients
+```
+
+En installation native, la même commande `python -m app.cli seed-demo-patients` s'exécute depuis `backend`, dans l'environnement Python configuré avec `PYTHONPATH=src` et les variables de connexion à la base.
 
 ## Vérifications
 
@@ -108,7 +133,7 @@ python3 -m unittest discover -s tests/modality -v
 | Temps de réponse du dossier, p95 | Moins de 1 s sur 30 lectures après échauffement | 0,058 s sur PostgreSQL 18 local avec faux Orthanc ; stack Docker non mesurée |
 | Délai d'intégration HL7 nominal | Moins de 2 s entre réception et persistance | Non mesuré |
 | Complétude du dossier | 100 % en nominal ; défaut visible en dégradé | Non mesurée |
-| Accès refusés journalisés | 100 % des cas testés | Test T03 ciblé ; scénario global non testé |
+| Accès refusés journalisés | 100 % des cas testés | Audit testé et refus entre rôles vérifiés via HTTP ; couverture exhaustive non mesurée |
 | Scénario complet | 5 répétitions réussies sur 5 | Non testé |
 
 </details>
@@ -126,12 +151,13 @@ python3 -m unittest discover -s tests/modality -v
 - [x] **T06 — première tranche :** service interne RIS, transitions et validation réservée au radiologue testés sur SQLite.
 - [x] **T06 — routes HTTP :** création, réalisation, brouillon et validation avec session et CSRF testés sur SQLite.
 - [x] **T06 — concurrence :** accession, réalisation et validation simultanées testées sur PostgreSQL 18 local.
-- [ ] **T06 — validation restante :** parcours Docker PostgreSQL 17.
+- [x] **T06 — Docker PostgreSQL 17 :** création et finalisation RIS, lecture et refus entre rôles vérifiés via HTTP.
 - [x] **T07 — première tranche :** DICOM synthétique, C-STORE de boucle locale et rapprochement Orthanc interne testés.
 - [x] **T07 — concurrence :** rattachement simultané testé sur PostgreSQL 18 avec faux Orthanc.
 - [x] **T07 — Docker PostgreSQL 17/Orthanc :** C-STORE et rapprochement d'étude vérifiés.
 - [x] **T08–T11 — première tranche :** synthèse clinique, mode API du frontend, aperçu PNG contrôlé et parcours intégré testés sur SQLite avec faux Orthanc.
-- [ ] **T08–T11 — validation restante :** performance, navigateur réel, Docker et répétitions du parcours complet.
+- [x] **T08–T11 — intégration Compose :** synthèse authentifiée, rôles et aperçu PNG réel vérifiés via HTTP.
+- [ ] **T08–T11 — validation restante :** performance du stack réel, parcours visuel complet dans le navigateur et répétitions du scénario.
 - [x] **T12 — procédure :** guide et script de vérification locale publiés.
 - [ ] **T12 — clôture :** exécution depuis un clone vierge avec Docker et bilan mesuré.
 
